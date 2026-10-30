@@ -85,3 +85,39 @@ npm run preview
 4. **Label Estimates**: Flipkart rupee figures, pre-13 Oct settlement estimates, and flat COGS figures are clearly badged as estimates.
 5. **Pre-returns Headline vs Net Sales**: Headline Shopify sales is Gross − Discounts (pre-returns) to eliminate distortion from batch refund processing days.
 6. **Glitch Filters**: Drops Meta ad-days exceeding ₹50k purchase value per purchase.
+
+---
+
+## 🔄 Going live from a Google Sheet
+
+The dashboard is a static site, so "live" means the data files are refreshed before every build. A scheduled GitHub Action (`.github/workflows/deploy.yml`, 06:30 IST daily) runs `scripts/sync_from_sheet.py`, builds and deploys. Nothing is fetched in the browser and no credentials reach it.
+
+**Data tabs** (header names in row 1; extra columns are ignored; a missing or empty tab keeps the bundled snapshot):
+
+| Tab | Feeds | Who fills it |
+|---|---|---|
+| `marketplaces` | Executive scorecard, Marketplaces page (Nykaa / Myntra figures) | Whoever owns the marketplace reports |
+| `monthly` | Monthly trend charts and insights | Monthly, from the finance roll-up |
+| `meta_accounts` | Meta account league | When account shares change |
+| `freshness` | Data freshness strip and assumptions | Updated by whatever loads the sheet |
+| `daily` | All daily charts, P&L, Advertising | Windsor / Shopify daily exports, once real data replaces the seeded series |
+
+Format long IDs (`accountId`) and dates (`YYYY-MM-DD`) as plain text so Sheets does not turn them into numbers or dates.
+
+**One-time setup**
+1. In Google Cloud, create a project, enable the Google Sheets API, and create a service account. Download its JSON key.
+2. Share the sheet with the service account's email address, as a Viewer.
+3. In the GitHub repo, go to Settings > Secrets and variables > Actions. Add a secret `GOOGLE_SERVICE_ACCOUNT_JSON` (the whole key file) and a variable `GOOGLE_SHEET_ID` (the long id in the sheet's URL).
+4. Run the workflow once from the Actions tab to check it.
+
+If the sheet has bad data (a non-number in a number column, a missing column, a duplicate date), the sync fails with the tab, row and column, and the deploy stops, so the last good site stays up.
+
+**Local use**
+
+```bash
+python scripts/sync_from_sheet.py --export-csv sheet-template --include-daily   # current data as a template
+python scripts/sync_from_sheet.py --csv-dir sheet-template --dry-run             # validate without writing
+python scripts/sync_from_sheet.py --csv-dir sheet-template                       # write src/data from CSVs
+```
+
+**Hosting and privacy.** The dashboard holds business numbers, so keep the repository private. GitHub Pages is not available for private repositories on the free plan, and on paid plans the site address stays public unless you use an enterprise access-controlled setup. For a private site, deploy the `dist` folder to a host with a login in front of it, or run `start-dashboard.bat` locally.

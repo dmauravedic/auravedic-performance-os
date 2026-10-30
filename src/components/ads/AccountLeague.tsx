@@ -7,7 +7,6 @@ import { Delta, VerdictChip } from './AdsBits';
 interface AccountLeagueProps {
   rows: AccountRow[];
   periodLabel: string;
-  excluded?: { name: string; accountId: string };
 }
 
 /**
@@ -15,7 +14,7 @@ interface AccountLeagueProps {
  * purchases and ROAS are split from the selected period's real Meta series by each account's
  * October share and relative performance, so they add back to the Meta totals exactly.
  */
-export const AccountLeague: React.FC<AccountLeagueProps> = ({ rows, periodLabel, excluded }) => (
+export const AccountLeague: React.FC<AccountLeagueProps> = ({ rows, periodLabel }) => (
   <div className="space-y-3">
     <div className="overflow-x-auto">
       <table className="w-full text-left text-xs">
@@ -62,12 +61,6 @@ export const AccountLeague: React.FC<AccountLeagueProps> = ({ rows, periodLabel,
       <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
       <span>
         "vs break-even" compares platform-attributed ROAS with the store's break-even, and platform ROAS runs high (see the first insight), so read it as a ranking aid, not a profit verdict.
-        {excluded && (
-          <>
-            {' '}
-            <strong className="font-semibold text-slate-600">{excluded.name}</strong> ({excluded.accountId}) is excluded from every figure on this page by the handbook rule; the handbook gives no reason beyond "always excluded".
-          </>
-        )}
       </span>
     </div>
   </div>

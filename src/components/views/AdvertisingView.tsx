@@ -85,7 +85,6 @@ export const AdvertisingView: React.FC = () => {
   const adSets = buildAdSetRows(adSetDays, AD_SETS, new Set(slice.map(r => r.date)));
   const funnel = accountFunnel(adSets);
   const insights = buildInsights({ slice, be, cogsRate: defaultCOGS, shippingRate: flatShipping, accounts, months, adSets });
-  const excluded = metaAccounts.find(a => a.status === 'Excluded');
 
   return (
     <div className="space-y-6">
@@ -242,11 +241,11 @@ export const AdvertisingView: React.FC = () => {
           subtitle="Ranked against the Meta average and the store's break-even. Fresh Pixel is judged on its own objective."
           badge={
             <SectionSourceBadge
-              source="Windsor.ai facebook Connector (5 Accounts | Excludes Admin 100149933695451)"
+              source="Windsor.ai facebook Connector (5 Accounts)"
             />
           }
         />
-        <AccountLeague rows={accounts} periodLabel={periodLabel} excluded={excluded} />
+        <AccountLeague rows={accounts} periodLabel={periodLabel} />
       </div>
 
       {/* Budget simulator */}
