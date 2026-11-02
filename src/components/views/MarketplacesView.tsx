@@ -180,7 +180,6 @@ export const MarketplacesView: React.FC = () => {
                     <th className="py-2.5 px-3 text-right">Units Ordered</th>
                     <th className="py-2.5 px-3 text-right">Order Items</th>
                     <th className="py-2.5 px-3 text-right">Est Revenue</th>
-                    <th className="py-2.5 px-3">Product Type</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
@@ -200,15 +199,6 @@ export const MarketplacesView: React.FC = () => {
                       </td>
                       <td className="py-2.5 px-3 text-right font-bold text-emerald-700 font-mono">
                         {formatINR(item.estRevenue, true)}
-                      </td>
-                      <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                          item.title.includes('100') ? 'bg-amber-50 text-amber-800 border-amber-200' :
-                          item.title.includes('Rosemary') ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
-                          'bg-slate-100 text-slate-600 border-slate-200'
-                        }`}>
-                          {item.title.includes('100') ? 'Hero Oil' : item.title.includes('Rosemary') ? 'Hair Care' : 'Skincare'}
-                        </span>
                       </td>
                     </tr>
                   ))}
