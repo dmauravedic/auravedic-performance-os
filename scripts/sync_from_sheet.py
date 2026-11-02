@@ -16,19 +16,33 @@ Sheet layout: one tab per table, header names in row 1 (extra columns are ignore
   freshness      -> freshness            key, value  (keys like metaAds, assumptions.defaultCOGS)
   daily          -> src/data/dailyData.ts  one row per day, columns as in scripts/data_io.py
 
+Windsor.ai exports land in their own tabs (see scripts/windsor_daily.py) and are merged over the
+daily series: meta_daily, google_daily, amz_sales_date, shop_daily.
+
 A tab that is missing or has no data rows is skipped and the bundled snapshot is kept for it. A tab
 that is present but malformed stops the run with an error naming the tab, row and column.
 
+Shan's report sheet (SHAN_SHEET_ID) is a second, optional source. It is a working sheet that holds
+other tabs too, so only named tabs and fixed ranges are read, never whole tabs:
+
+  Sheet31             A1:K11   -> unitEconomics        (keeps the DEFAULT baseline row)
+  Amz-Inventory Plan  A1:I12   -> amazonInventoryPlan
+  Nykaa Ads           A1:L200  -> Nykaa row of marketplaceSummary  (latest month with orders)
+  Myntra Ads          A1:I200  -> Myntra row of marketplaceSummary (latest month with orders)
+
 Usage
-  python scripts/sync_from_sheet.py                         # Google Sheet from the environment
+  python scripts/sync_from_sheet.py                         # Google Sheet(s) from the environment
   python scripts/sync_from_sheet.py --csv-dir DIR           # CSV exports, one <tab>.csv each
+  python scripts/sync_from_sheet.py --shan-csv-dir DIR      # Shan's tabs as CSVs (testing)
   python scripts/sync_from_sheet.py --export-csv DIR        # write the current data as a template
   python scripts/sync_from_sheet.py --csv-dir DIR --out-dir OUT   # write somewhere else (testing)
 
-Environment (Google Sheet mode)
-  GOOGLE_SERVICE_ACCOUNT_JSON   the service account key (JSON text); share the sheet with its email
-  GOOGLE_SHEET_ID               the id in the sheet's URL
-Without both, the script exits cleanly and the build keeps the bundled snapshot.
+Environment (Google mode)
+  GOOGLE_SERVICE_ACCOUNT_JSON   the service account key (JSON text); share each sheet with its email
+  GOOGLE_SHEET_ID               the dashboard feed workbook
+  SHAN_SHEET_ID                 Shan's report sheet (optional)
+Sheet ids are never printed, because the workflow log of a public repository is public.
+With neither sheet configured, the script exits cleanly and the build keeps the bundled snapshot.
 """
 
 import argparse
@@ -40,16 +54,13 @@ import sys
 
 sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from data_io import DAILY_FIELDS, read_daily_ts, write_daily_ts  # noqa: E402
+from data_io import DAILY_FIELDS, SyncError, parse_number, read_daily_ts, write_daily_ts  # noqa: E402
+from windsor_daily import WINDSOR_TABS, merge_into_daily, parse_windsor  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT, "src", "data")
 
 STR, NUM = "str", "num"
-
-
-class SyncError(Exception):
-    pass
 
 
 def col(name, kind=NUM, optional=False):
@@ -91,17 +102,6 @@ CANONICAL_CHANNELS = ["Shopify D2C", "Amazon.in", "Flipkart", "Nykaa", "Myntra"]
 # ---------------------------------------------------------------------------
 # Parsing and validation
 # ---------------------------------------------------------------------------
-
-def parse_number(text, where):
-    s = str(text).strip().replace(",", "").replace("₹", "").replace("%", "")
-    try:
-        v = float(s)
-    except ValueError:
-        raise SyncError(f"{where}: '{text}' is not a number")
-    if v != v or v in (float("inf"), float("-inf")):
-        raise SyncError(f"{where}: '{text}' is not a finite number")
-    return int(v) if v.is_integer() else v
-
 
 def table_rows(tab, table):
     """Turn a list-of-lists (header first) into (header map, data rows), skipping blank rows."""
@@ -231,7 +231,7 @@ def parse_daily(table):
 
 def read_csv_tables(directory):
     tables = {}
-    for tab in list(TABLES) + ["freshness", "daily"]:
+    for tab in list(TABLES) + ["freshness", "daily"] + WINDSOR_TABS:
         path = os.path.join(directory, f"{tab}.csv")
         if os.path.exists(path):
             with open(path, newline="", encoding="utf-8-sig") as f:
@@ -254,9 +254,17 @@ def read_google_tables(sheet_id, credentials_json):
     )
     book = gspread.authorize(creds).open_by_key(sheet_id)
     tables = {}
-    for tab in list(TABLES) + ["freshness", "daily"]:
+    for tab in list(TABLES) + ["freshness", "daily"] + WINDSOR_TABS:
         try:
-            tables[tab] = book.worksheet(tab).get_all_values()
+            ws = book.worksheet(tab)
+            if tab in WINDSOR_TABS:
+                # Raw values, so Windsor's date columns arrive as serial numbers whatever the locale
+                try:
+                    tables[tab] = ws.get_all_values(value_render_option="UNFORMATTED_VALUE")
+                except TypeError:
+                    tables[tab] = ws.get_all_values()
+            else:
+                tables[tab] = ws.get_all_values()
         except gspread.WorksheetNotFound:
             print(f"  tab '{tab}' not found in the sheet: keeping the bundled snapshot for it")
     return tables
@@ -292,7 +300,208 @@ def export_csv(directory, include_daily):
     print(f"Wrote template CSVs to {directory}")
 
 
-def apply(tables, out_dir, dry_run):
+# ---------------------------------------------------------------------------
+# Shan's report sheet: named tabs, bounded ranges, never whole tabs
+# ---------------------------------------------------------------------------
+
+# The Sheet31 range stops at row 11 on purpose: the rows below the table are notes, not data.
+SHAN_RANGES = {
+    "Sheet31": "A1:K11",
+    "Amz-Inventory Plan": "A1:I12",
+    "Nykaa Ads": "A1:L200",
+    "Myntra Ads": "A1:I200",
+}
+
+
+def norm(cell):
+    return str(cell).strip().lower()
+
+
+def find_header(table, required):
+    """Index of the first row that contains every required column name, or None."""
+    for i, row in enumerate(table or []):
+        names = {norm(c) for c in row}
+        if all(r in names for r in required):
+            return i
+    return None
+
+
+def shan_rows(tab, table, required, key):
+    """(column map, data rows) up to the first row whose key column is blank; None if no table."""
+    h = find_header(table, required)
+    if h is None:
+        return None
+    header = {norm(c): i for i, c in enumerate(table[h]) if norm(c)}
+    rows = []
+    for line, row in enumerate(table[h + 1:], start=h + 2):
+        kidx = header[key]
+        if kidx >= len(row) or not str(row[kidx]).strip():
+            break
+        rows.append((line, row))
+    return header, rows
+
+
+def cell(row, header, name, where, optional=False):
+    idx = header.get(name)
+    raw = row[idx].strip() if idx is not None and idx < len(row) else ""
+    if raw == "":
+        if optional:
+            return None
+        raise SyncError(f"{where}: column '{name}' is empty")
+    return parse_number(raw, f"{where}, column '{name}'")
+
+
+MONTH_NAMES = {m.lower(): m for m in "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()}
+
+
+def month_label(text):
+    m = re.fullmatch(r"([A-Za-z]{3})[A-Za-z]*[\s_\-']*(\d{2}|\d{4})", str(text).strip())
+    if not m or m.group(1).lower() not in MONTH_NAMES:
+        return str(text).strip()
+    year = m.group(2) if len(m.group(2)) == 4 else f"20{m.group(2)}"
+    return f"{MONTH_NAMES[m.group(1).lower()]} {year}"
+
+
+def shan_unit_economics(table, existing):
+    parsed = shan_rows("Sheet31", table, ["name", "cogs", "rto", "sp"], "name")
+    if parsed is None:
+        return None
+    header, rows = parsed
+    out = {}
+    for line, row in rows:
+        where = f"Sheet31 row {line}"
+        key = row[header["name"]].strip()
+        sp = cell(row, header, "sp", where)
+        total_cost = cell(row, header, "total cost", where)
+        with_rto = cell(row, header, "balance with rto", where)
+        out[key] = {
+            "name": existing.get(key, {}).get("name", key),
+            "cogs": cell(row, header, "cogs", where),
+            "shipping": cell(row, header, "shipping", where),
+            "metaCAC": cell(row, header, "meta cost", where),
+            "sellingPrice": sp,
+            "rtoCost": cell(row, header, "rto", where) - total_cost,
+            "netProfitWithRTO": with_rto,
+            "netProfitWithoutRTO": cell(row, header, "balance without rto", where),
+            "marginPercent": round(with_rto / sp * 100, 1) if sp else 0,
+        }
+    if "DEFAULT" in existing:  # baseline assumption row, not a sheet row
+        out["DEFAULT"] = existing["DEFAULT"]
+    return out or None
+
+
+def shan_inventory(table):
+    parsed = shan_rows("Amz-Inventory Plan", table, ["asin", "product", "current inventory"], "asin")
+    if parsed is None:
+        return None
+    header, rows = parsed
+    out = []
+    for line, row in rows:
+        where = f"Amz-Inventory Plan row {line}"
+        current = cell(row, header, "current inventory", where)
+        avg = cell(row, header, "avg monthly sale", where)
+        out.append({
+            "asin": row[header["asin"]].strip(),
+            "product": row[header["product"]].strip(),
+            "currentInventory": current,
+            "inbound": cell(row, header, "inbound", where),
+            "avgMonthlySale": avg,
+            "neededToSend": cell(row, header, "needed to be send", where),
+            "daysOfCover": round(current / (avg / 30.0), 1) if avg > 0 else 99,
+        })
+    return out or None
+
+
+def shan_marketplace(tab, table, roas_names):
+    """Latest month that has total orders and revenue, as the fields of a marketplaceSummary row."""
+    h = find_header(table, ["month", "total orders", "total revenue"])
+    if h is None:
+        return None
+    header = {norm(c): i for i, c in enumerate(table[h]) if norm(c)}
+    roas_col = next((n for n in roas_names if n in header), None)
+    if roas_col is None or "spent" not in header:
+        raise SyncError(f"{tab}: needs columns Spent and {' / '.join(roas_names)}")
+    latest = None
+    for line, row in enumerate(table[h + 1:], start=h + 2):
+        try:
+            orders = cell(row, header, "total orders", f"{tab} row {line}")
+            revenue = cell(row, header, "total revenue", f"{tab} row {line}")
+        except SyncError:
+            continue
+        if orders > 0 and revenue > 0:
+            latest = (line, row, orders, revenue)
+    if latest is None:
+        return None
+    line, row, orders, revenue = latest
+    where = f"{tab} row {line}"
+    return {
+        "periodLabel": month_label(row[header["month"]]),
+        "monthlyRevenue": int(round(revenue)),
+        "orders": int(round(orders)),
+        "aov": int(round(revenue / orders)),
+        "adSpend": cell(row, header, "spent", where),
+        "adRoas": round(cell(row, header, roas_col, where), 2),
+    }
+
+
+def apply_shan(data, tables):
+    notes = []
+    ue = shan_unit_economics(tables.get("Sheet31"), data.get("unitEconomics", {}))
+    if ue:
+        data["unitEconomics"] = ue
+        notes.append(f"Sheet31: {len([k for k in ue if k != 'DEFAULT'])} rows -> unitEconomics")
+    inv = shan_inventory(tables.get("Amz-Inventory Plan"))
+    if inv:
+        data["amazonInventoryPlan"] = inv
+        notes.append(f"Amz-Inventory Plan: {len(inv)} rows -> amazonInventoryPlan")
+
+    changed = False
+    for channel, tab, roas in (("Nykaa", "Nykaa Ads", ["ad-roas", "roas"]), ("Myntra", "Myntra Ads", ["roas", "ad-roas"])):
+        fields = shan_marketplace(tab, tables.get(tab), roas)
+        if not fields:
+            continue
+        row = next((r for r in data["marketplaceSummary"] if r["channel"] == channel), None)
+        if row is None:
+            notes.append(f"{tab}: no {channel} row in marketplaceSummary, skipped")
+            continue
+        row.update(fields)
+        changed = True
+        notes.append(f"{tab}: {fields['periodLabel']} -> {channel} ({fields['orders']} orders)")
+    if changed:
+        # Shares of the listed channels, so they add to 100% (the old figures summed to 118%)
+        total = sum(r["monthlyRevenue"] for r in data["marketplaceSummary"])
+        for r in data["marketplaceSummary"]:
+            r["sharePercent"] = round(r["monthlyRevenue"] / total * 100, 1) if total else 0
+        notes.append("sharePercent recomputed across the listed channels")
+    return notes
+
+
+def read_shan_csv(directory):
+    tables = {}
+    for tab in SHAN_RANGES:
+        path = os.path.join(directory, f"{tab}.csv")
+        if os.path.exists(path):
+            with open(path, newline="", encoding="utf-8-sig") as f:
+                tables[tab] = list(csv.reader(f))
+    return tables
+
+
+def read_shan_google(sheet_id, credentials_json):
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+    except ImportError:
+        raise SyncError("Google mode needs: pip install gspread google-auth")
+    creds = Credentials.from_service_account_info(
+        json.loads(credentials_json), scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"]
+    )
+    book = gspread.authorize(creds).open_by_key(sheet_id)
+    ranges = [f"'{tab}'!{rng}" for tab, rng in SHAN_RANGES.items()]
+    reply = book.values_batch_get(ranges)
+    return {tab: vr.get("values", []) for tab, vr in zip(SHAN_RANGES, reply.get("valueRanges", []))}
+
+
+def apply(tables, shan_tables, out_dir, dry_run):
     results = {}
     for tab, spec in TABLES.items():
         items = parse_table(tab, spec, tables.get(tab))
@@ -305,6 +514,13 @@ def apply(tables, out_dir, dry_run):
     with open(os.path.join(DATA_DIR, "dashboardData.json"), encoding="utf-8") as f:
         data = json.load(f)
 
+    windsor_sources, windsor_notes = parse_windsor(tables, data)
+    if windsor_sources:
+        base = daily or read_daily_ts(os.path.join(DATA_DIR, "dailyData.ts"))
+        daily, merge_notes = merge_into_daily(base, windsor_sources)
+        for note in windsor_notes + merge_notes:
+            print(f"  {note}")
+
     for tab, items in results.items():
         data[TABLES[tab]["target"]] = items
         print(f"  {tab}: {len(items)} rows -> {TABLES[tab]['target']}")
@@ -313,11 +529,18 @@ def apply(tables, out_dir, dry_run):
         merged["assumptions"] = {**data["freshness"].get("assumptions", {}), **fresh.get("assumptions", {})}
         data["freshness"] = merged
         print(f"  freshness: {len(fresh)} keys")
-    for tab in ("marketplaces", "monthly", "meta_accounts", "freshness", "daily"):
+    for tab in ("marketplaces", "monthly", "meta_accounts", "freshness", "daily") if tables else ():
         if tab not in results and not (tab == "freshness" and fresh) and not (tab == "daily" and daily):
             print(f"  {tab}: empty or missing, keeping the bundled snapshot")
     if daily:
         print(f"  daily: {len(daily)} days ({daily[0]['date']} to {daily[-1]['date']}) -> dailyData.ts")
+
+    if shan_tables:
+        notes = apply_shan(data, shan_tables)
+        for note in notes:
+            print(f"  {note}")
+        if not notes:
+            print("  Shan's sheet: nothing usable found, keeping the bundled snapshot for it")
 
     if dry_run:
         print("Dry run: nothing written.")
@@ -340,6 +563,7 @@ def apply(tables, out_dir, dry_run):
 def main():
     ap = argparse.ArgumentParser(description="Sync dashboard data from a Google Sheet or CSV exports.")
     ap.add_argument("--csv-dir", help="read <tab>.csv files from this folder instead of Google")
+    ap.add_argument("--shan-csv-dir", help="read Shan's tabs (<tab>.csv) from this folder instead of Google")
     ap.add_argument("--export-csv", metavar="DIR", help="write the current data as template CSVs and exit")
     ap.add_argument("--include-daily", action="store_true", help="with --export-csv, include the daily rows")
     ap.add_argument("--out-dir", default=DATA_DIR, help="where to write the data files (default src/data)")
@@ -350,19 +574,29 @@ def main():
         if args.export_csv:
             export_csv(args.export_csv, args.include_daily)
             return 0
+        creds = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+        feed_id = os.environ.get("GOOGLE_SHEET_ID", "").strip()
+        shan_id = os.environ.get("SHAN_SHEET_ID", "").strip()
+
+        tables = shan_tables = None
         if args.csv_dir:
             print(f"Reading CSV exports from {args.csv_dir}")
             tables = read_csv_tables(args.csv_dir)
-        else:
-            sheet_id = os.environ.get("GOOGLE_SHEET_ID", "").strip()
-            creds = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
-            if not sheet_id or not creds:
-                print("Google Sheet sync is not configured (GOOGLE_SHEET_ID and GOOGLE_SERVICE_ACCOUNT_JSON).")
-                print("Keeping the bundled snapshot.")
-                return 0
-            print(f"Reading Google Sheet {sheet_id}")
-            tables = read_google_tables(sheet_id, creds)
-        apply(tables, args.out_dir, args.dry_run)
+        elif feed_id and creds:
+            print("Reading the dashboard feed workbook")
+            tables = read_google_tables(feed_id, creds)
+        if args.shan_csv_dir:
+            print(f"Reading Shan's tabs from {args.shan_csv_dir}")
+            shan_tables = read_shan_csv(args.shan_csv_dir)
+        elif shan_id and creds:
+            print("Reading Shan's report sheet (named tabs and fixed ranges only)")
+            shan_tables = read_shan_google(shan_id, creds)
+
+        if tables is None and shan_tables is None:
+            print("Google Sheet sync is not configured (GOOGLE_SERVICE_ACCOUNT_JSON plus GOOGLE_SHEET_ID")
+            print("and / or SHAN_SHEET_ID). Keeping the bundled snapshot.")
+            return 0
+        apply(tables or {}, shan_tables, args.out_dir, args.dry_run)
         return 0
     except SyncError as e:
         print(f"SYNC FAILED: {e}", file=sys.stderr)

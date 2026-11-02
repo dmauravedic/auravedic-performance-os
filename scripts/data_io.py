@@ -64,3 +64,21 @@ def read_daily_ts(path):
     if body.endswith(";"):
         body = body[:-1]
     return json.loads(body)
+
+
+class SyncError(Exception):
+    """Bad or unusable sheet data: the run stops and names the tab, row and column."""
+
+
+def parse_number(text, where):
+    s = str(text).strip().replace(",", "").replace("₹", "").replace("%", "")
+    scale = 1
+    if s[-1:] in ("k", "K"):  # "₹15.6K" style entries in the report sheet
+        s, scale = s[:-1], 1000
+    try:
+        v = float(s) * scale
+    except ValueError:
+        raise SyncError(f"{where}: '{text}' is not a number")
+    if v != v or v in (float("inf"), float("-inf")):
+        raise SyncError(f"{where}: '{text}' is not a finite number")
+    return int(v) if v.is_integer() else v

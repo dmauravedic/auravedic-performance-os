@@ -42,11 +42,14 @@ jobs:
       # notice and keeps the bundled snapshot; with bad sheet data it fails the run, so the last
       # good site stays live instead of publishing broken numbers.
       - name: Sync data from the Google Sheet
+        # The sheet ids are secrets, not variables: a variable's value is printed in the workflow
+        # log, and the log of a public repository is public.
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          GOOGLE_SHEET_ID: ${{ vars.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          SHAN_SHEET_ID: ${{ secrets.SHAN_SHEET_ID }}
         run: |
-          if [ -n "$GOOGLE_SERVICE_ACCOUNT_JSON" ] && [ -n "$GOOGLE_SHEET_ID" ]; then
+          if [ -n "$GOOGLE_SERVICE_ACCOUNT_JSON" ] && { [ -n "$GOOGLE_SHEET_ID" ] || [ -n "$SHAN_SHEET_ID" ]; }; then
             pip install gspread google-auth
           fi
           python scripts/sync_from_sheet.py

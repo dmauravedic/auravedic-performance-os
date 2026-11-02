@@ -308,17 +308,17 @@ export const MarketplacesView: React.FC = () => {
                 {activeMktTab === 'nykaa' ? 'Nykaa Marketplace' : 'Myntra Marketplace'} Performance
               </h3>
               <p className="text-xs text-slate-500">
-                Extracted from historical operational tracking and SKU catalog mappings.
+                Latest month in Shan's report sheet: {mk?.periodLabel ?? 'not available'}. Sales and orders cover the whole channel; ad spend is the platform's own ads.
               </p>
             </div>
             <SectionSourceBadge 
-              source={`Master Operations Sheet (Copy of Shan-Report-Sheet.xlsx ${activeMktTab === 'nykaa' ? 'Nykaa-PW' : 'Myntra PW'} tab)`} 
+              source={`Shan's Report Sheet (${activeMktTab === 'nykaa' ? 'Nykaa Ads' : 'Myntra Ads'} tab)`}
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-slate-500 block mb-1">Estimated Monthly Sales:</span>
+              <span className="text-slate-500 block mb-1">Monthly Sales{mk?.periodLabel ? ` (${mk.periodLabel})` : ''}:</span>
               <span className="text-2xl font-bold text-slate-900 font-mono">
                 {mk ? formatINR(mk.monthlyRevenue, true) : '—'}
               </span>

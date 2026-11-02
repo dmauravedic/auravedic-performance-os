@@ -107,10 +107,32 @@ Format long IDs (`accountId`) and dates (`YYYY-MM-DD`) as plain text so Sheets d
 **One-time setup**
 1. In Google Cloud, create a project, enable the Google Sheets API, and create a service account. Download its JSON key.
 2. Share the sheet with the service account's email address, as a Viewer.
-3. In the GitHub repo, go to Settings > Secrets and variables > Actions. Add a secret `GOOGLE_SERVICE_ACCOUNT_JSON` (the whole key file) and a variable `GOOGLE_SHEET_ID` (the long id in the sheet's URL).
+3. In the GitHub repo, go to Settings > Secrets and variables > Actions > Secrets. Add `GOOGLE_SERVICE_ACCOUNT_JSON` (the whole key file) and `GOOGLE_SHEET_ID` (the long id in the sheet's URL). Use secrets, not variables: a variable's value is printed in the workflow log, which is public for a public repository.
 4. Run the workflow once from the Actions tab to check it.
 
 If the sheet has bad data (a non-number in a number column, a missing column, a duplicate date), the sync fails with the tab, row and column, and the deploy stops, so the last good site stays up.
+
+**Shan's report sheet** is an optional second source (secret `SHAN_SHEET_ID`, shared with the same service account as Viewer). It is a working sheet with many other tabs, so the script reads only these, in fixed ranges, and never a whole tab:
+
+| Tab and range | Feeds |
+|---|---|
+| `Sheet31` A1:K11 | Unit economics on the Products page (the `DEFAULT` baseline row is kept) |
+| `Amz-Inventory Plan` A1:I12 | Amazon inventory plan |
+| `Nykaa Ads` A1:L200 | Nykaa sales, orders, AOV, ad spend and ROAS (latest month with orders) |
+| `Myntra Ads` A1:I200 | The same for Myntra |
+
+**Windsor.ai exports** write straight into the feed workbook, one tab each, and replace the built-in daily figures for the source they cover. Set them up in Windsor's own dashboard (destination Google Sheets, this workbook, the tab name below, daily at 06:00 IST, last 90 days). The workbook's README tab lists the exact fields to select.
+
+| Tab | Windsor connector | Overwrites |
+|---|---|---|
+| `meta_daily` | `facebook` | Meta spend, purchases, purchase value. The excluded account and rows over ₹50,000 per purchase are dropped. |
+| `google_daily` | `google_ads` | Google spend, conversions, conversion value |
+| `amz_sales_date` | `amazon_sp` (Sales and Traffic by date) | Amazon sales and order items. Refunds, fees and billed ads follow sales until a settlement export is added. |
+| `shop_daily` | `shopify` | Shopify gross sales, discounts, returns, orders |
+
+Column names are matched loosely (case, spaces and underscores are ignored), a missing required column stops the run and lists what was found, and repeated rows from an appending export are ignored. A source with no rows leaves the built-in figures alone. **Only days already in the dashboard (27 Aug to 25 Oct) are overwritten for now**: days after that are reported in the run log and not added, because the app's period logic (MTD, last 7 days, prior periods) is still tied to the bundled 60-day window.
+
+The month each channel's figures cover is shown next to them. Channel shares are recomputed across the listed channels so they add to 100%. Keep the `Sheet31` table within rows 1 to 11 and put nothing sensitive in these tabs or ranges. **Do not keep passwords or payment-portal logins in any sheet that is shared with the service account or with a link.**
 
 **Local use**
 

@@ -19,11 +19,11 @@ It replaces the Claude-hosted "Auravedic cross-channel performance" dashboard as
 
 ### 1.1 Decisions already made
 
-| Decision | Choice | Why |
-|---|---|---|
-| Ad and Amazon data pipeline | **Windsor.ai scheduled exports** to a destination (Google Sheets first) | Steadier and cheaper than a Claude-run sync. Adds new export tasks and changes nothing in the existing Windsor connections, cache tasks or reports. |
-| Existing Windsor setup | **Leave untouched** | The daily ads report, the weekly Meta refresh, the Flipkart check and this dashboard all read from Windsor today. |
-| Claude's role | Analysis, narrative, anomaly flags, and the sources Windsor cannot carry (Shopify, Flipkart reports from Slack) | Covers the parts that need judgment or have no API. |
+| Decision                    | Choice                                                                                                          | Why                                                                                                                                                 |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ad and Amazon data pipeline | **Windsor.ai scheduled exports** to a destination (Google Sheets first)                                         | Steadier and cheaper than a Claude-run sync. Adds new export tasks and changes nothing in the existing Windsor connections, cache tasks or reports. |
+| Existing Windsor setup      | **Leave untouched**                                                                                             | The daily ads report, the weekly Meta refresh, the Flipkart check and this dashboard all read from Windsor today.                                   |
+| Claude's role               | Analysis, narrative, anomaly flags, and the sources Windsor cannot carry (Shopify, Flipkart reports from Slack) | Covers the parts that need judgment or have no API.                                                                                                 |
 
 ### 1.2 Decisions still open
 

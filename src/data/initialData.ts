@@ -119,6 +119,8 @@ export interface MarketplaceItem {
   adSpend?: number;
   adRoas?: number;
   skusMapped?: number;
+  /** Month the figures cover, when it differs from the dashboard period (e.g. "Aug 2026"). */
+  periodLabel?: string;
 }
 
 export interface FreshnessInfo {

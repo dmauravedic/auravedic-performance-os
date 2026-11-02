@@ -344,7 +344,10 @@ export const ExecutiveSummaryView: React.FC = () => {
                         {m.type}
                       </span>
                     </td>
-                    <td className="py-2.5 px-3 text-right font-bold text-slate-900">{formatINR(m.monthlyRevenue, true)}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-slate-900">
+                      {formatINR(m.monthlyRevenue, true)}
+                      {m.periodLabel && <div className="text-[10px] font-normal text-slate-400">{m.periodLabel}</div>}
+                    </td>
                     <td className="py-2.5 px-3 text-right">{formatPercent(m.sharePercent)}</td>
                     <td className="py-2.5 px-3 text-right">{formatNumber(m.orders)}</td>
                     <td className="py-2.5 px-3 text-right font-mono">{formatINR(m.aov)}</td>
