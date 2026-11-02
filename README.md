@@ -59,9 +59,9 @@ npm run preview
    - Emerging Channels: Dedicated tracking for Nykaa and Myntra.
 
 6. **Products & Combo Recipes**:
-   - 43 Base Products Master Table: Complete catalog of base items with landed costs and MRPs.
+   - 43 Base Products Master Table: Catalog of base items with MRPs. Every product is costed at the flat ₹125 per unit until finance supplies real landed costs.
    - Combo Recipe Deconstruction Engine: Explodes 190 finished SKUs and combo bundles into physical base units. Select any base product to see every listing across channels that draws from its factory stock.
-   - Unit Economic Margin Traps: Real SKU economics from Sheet31 exposing loss-making bundles (e.g. `KNS+KNC` combo losing ₹235 per order after RTO).
+   - Unit Economic Margin Traps: Shipping, CAC and RTO per bundle from Sheet31, with landed cost set to units × the flat ₹125 (the sheet's own landed costs are not used), exposing loss-making bundles (e.g. `KNS+KNC` combo losing ₹235 per order after RTO).
 
 7. **Warehouse & Stock Operations**:
    - Warehouse level filter (All / Coimbatore / Mumbai) drives the cards, the days-of-cover table and the factory requirement. A hub's cover counts only the share of sales that ships from it (CBE share starts from the Shopify order mix by state and can be overwritten).
@@ -135,7 +135,7 @@ Column names are matched loosely (case, spaces and underscores are ignored), a m
 
 The month each channel's figures cover is shown next to them. Channel shares are recomputed across the listed channels so they add to 100%. Keep the `Sheet31` table within rows 1 to 11 and put nothing sensitive in these tabs or ranges. **Do not keep passwords or payment-portal logins in any sheet that is shared with the service account or with a link.**
 
-**Is the data current?** Every card and section shows when its data was last updated and checks that against how late the source is allowed to be. The Data Health page lists every source, where it comes from and whether it is current. A source can be in one of three states:
+**Is the data current?** Every card and section shows when its data was last updated and checks that against how late the source is allowed to be. Every card also has a **Data from** line naming where its figures come from, split into *Automatic* (Shopify, and Windsor for Meta, Google and Amazon) and *Manual* (Flipkart reports posted in Slack, the warehouse stock report, and the tabs of Shan's sheet). Section badges carry the same word. The Data Health page lists every source, where it comes from and whether it is current. A source can be in one of three states:
 
 | State | Meaning | Examples |
 |---|---|---|
@@ -143,7 +143,7 @@ The month each channel's figures cover is shown next to them. Channel shares are
 | Note (blue) | Behind, but by design, so it is **not** flagged | Flipkart runs about a day behind (stale after 3 days). Amazon runs 1–2 days behind (stale after 3). The stock desk skips Sunday. Monthly reports are entered after the month closes |
 | Stale (red) | Past its accepted delay: the figures are not current. A red banner appears at the top | Shopify not updated for more than 36 hours. A missed nightly stock report |
 
-The limits live in `FRESHNESS_RULES` in `src/data/channelLatency.ts`, and the table of sources in `src/data/dataSources.ts`. The dashboard shows a bundled snapshot until the sheet sync is switched on, so with the snapshot ending on 25 Oct every daily source will read as stale from the 27th until the sync is live. To see how the page looks on another day, add `?now=2026-10-27T10:00` to the address.
+The limits live in `FRESHNESS_RULES` and the plain-language origin of each source in `SOURCE_ORIGIN`, both in `src/data/channelLatency.ts`; the table of sources is in `src/data/dataSources.ts`. The dashboard shows a bundled snapshot until the sheet sync is switched on, so with the snapshot ending on 25 Oct every daily source will read as stale from the 27th until the sync is live. To see how the page looks on another day, add `?now=2026-10-27T10:00` to the address.
 
 **Local use**
 

@@ -417,7 +417,7 @@ export const ProfitLossView: React.FC = () => {
 
           <div className="mt-4 pt-3 border-t border-slate-100">
             <SectionSourceBadge 
-              source="Shopify Store Analytics (ShopifyQL FROM sales) + Windsor Meta & Google Spend"
+              source="Shopify store analytics + Windsor (Meta and Google spend)"
             />
           </div>
         </div>
@@ -477,7 +477,7 @@ export const ProfitLossView: React.FC = () => {
 
           <div className="mt-4 pt-3 border-t border-slate-100">
             <SectionSourceBadge 
-              source="Amazon Seller Central Settlement Report v2 (amazon_sp) + SP-API Sales"
+              source="Amazon Seller Central settlement report + sales (via Windsor)"
             />
           </div>
         </div>

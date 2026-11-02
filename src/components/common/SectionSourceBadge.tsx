@@ -1,7 +1,14 @@
 import React from 'react';
-import { Database, Clock } from 'lucide-react';
+import { Database, Clock, Hand, Zap } from 'lucide-react';
 import type { ChannelFilter } from '../../context/DashboardContext';
-import { resolveLatency, resolveSourceKeys, type LatencySourceKey } from '../../data/channelLatency';
+import {
+  resolveLatency,
+  resolveSourceKeys,
+  ROUTE_WORD,
+  SOURCE_ORIGIN,
+  type LatencySourceKey,
+  type SourceRoute
+} from '../../data/channelLatency';
 import { FreshnessBadges } from './FreshnessChip';
 
 interface SectionSourceBadgeProps {
@@ -36,11 +43,24 @@ export const SectionSourceBadge: React.FC<SectionSourceBadgeProps> = ({
       : resolveLatency({ channel, text: `${source} ${pipeline || ''}` });
   const freshnessKeys = sources ?? (showLatency ? resolveSourceKeys({ channel, text: `${source} ${pipeline || ''}` }) : []);
 
+  // How the sources behind this section arrive, in a word: by themselves, posted by people, or both.
+  const routes = new Set(freshnessKeys.map(k => SOURCE_ORIGIN[k].route));
+  const routeKind: SourceRoute | null =
+    routes.size === 0
+      ? null
+      : routes.has('automated') && routes.has('manual')
+        ? 'mixed'
+        : routes.has('automated')
+          ? 'automated'
+          : routes.has('manual')
+            ? 'manual'
+            : 'static';
+
   return (
     <div className={`inline-flex flex-wrap items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200/90 text-[11px] text-slate-600 font-sans shadow-2xs ${className}`}>
       <span className="flex items-center gap-1 font-semibold text-slate-700">
         <Database className="w-3 h-3 text-amber-600 shrink-0" />
-        Data Source:
+        Data from:
       </span>
       <span className="text-slate-800 font-medium">{source}</span>
       {pipeline && (
@@ -54,6 +74,24 @@ export const SectionSourceBadge: React.FC<SectionSourceBadgeProps> = ({
           <span className="text-slate-300">•</span>
           <span className="text-emerald-700 font-medium text-[10px] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60">
             {syncCadence}
+          </span>
+        </>
+      )}
+      {routeKind && routeKind !== 'static' && (
+        <>
+          <span className="text-slate-300">•</span>
+          <span
+            title={freshnessKeys.map(k => `${SOURCE_ORIGIN[k].from}: ${ROUTE_WORD[SOURCE_ORIGIN[k].route].toLowerCase()}`).join('\n')}
+            className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border whitespace-nowrap ${
+              routeKind === 'automated'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : routeKind === 'manual'
+                  ? 'bg-amber-50 text-amber-900 border-amber-200'
+                  : 'bg-sky-50 text-sky-800 border-sky-200'
+            }`}
+          >
+            {routeKind === 'manual' ? <Hand className="w-3 h-3" aria-hidden /> : <Zap className="w-3 h-3" aria-hidden />}
+            {ROUTE_WORD[routeKind]}
           </span>
         </>
       )}

@@ -153,7 +153,7 @@ export const MarketplacesView: React.FC = () => {
               </div>
             </div>
             <SectionSourceBadge 
-              source="Amazon Settlement v2 Flat File (amazon_sp)" 
+              source="Amazon settlement report (via Windsor)"
             />
           </div>
 

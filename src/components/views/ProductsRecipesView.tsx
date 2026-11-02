@@ -22,6 +22,33 @@ export const ProductsRecipesView: React.FC = () => {
   const [selectedBaseKey, setSelectedBaseKey] = useState<string>('K100');
   const [productSearch, setProductSearch] = useState<string>('');
 
+  // Landed cost is the flat per-unit cost the P&L uses, times the units in the bundle, so this table
+  // and the P&L cannot disagree. The sheet's own landed costs are not used until finance supplies real ones.
+  const unitsInBundle = (key: string): number | null => {
+    if (key === 'DEFAULT') return 1;
+    const parts = recipes.find(r => r.code === `AV-${key.replace('+', '-')}`)?.parts;
+    return parts ? Object.values(parts).reduce((sum, n) => sum + n, 0) : null;
+  };
+  const economics = Object.entries(unitEconomics).map(([key, item]) => {
+    const units = unitsInBundle(key);
+    if (units === null) return { key, item, units, flat: false };
+    // The baseline row is already the flat assumption, with its own profit figures: leave it as it is.
+    if (key === 'DEFAULT') return { key, item, units, flat: true };
+    const cogs = units * defaultCOGS;
+    const oldCost = item.cogs + item.shipping + item.metaCAC;
+    const newCost = cogs + item.shipping + item.metaCAC;
+    // RTO penalty grows with the order's cost, in the same proportion as in the sheet.
+    const rtoCost = oldCost > 0 ? Math.round(item.rtoCost * (newCost / oldCost)) : item.rtoCost;
+    const netProfitWithoutRTO = item.sellingPrice - newCost;
+    const netProfitWithRTO = netProfitWithoutRTO - rtoCost;
+    return {
+      key,
+      units,
+      flat: true,
+      item: { ...item, cogs, rtoCost, netProfitWithoutRTO, netProfitWithRTO }
+    };
+  });
+
   const selectedBase = baseProducts.find(bp => bp.key === selectedBaseKey) || baseProducts[0];
   const containingListings = recipes.filter(r => r.parts && r.parts[selectedBaseKey]);
 
@@ -55,7 +82,7 @@ export const ProductsRecipesView: React.FC = () => {
 
         <div className="pt-2 border-t border-white/10 flex items-center justify-between">
           <SectionSourceBadge 
-            source="Stock Desk Recipe Database (kit/build.py & kit/state.json 190 Listing Recipes)" 
+            source="Stock desk recipe database (190 listing recipes; a sample is loaded here)"
             className="bg-black/20 text-amber-100 border-white/10"
           />
         </div>
@@ -68,11 +95,13 @@ export const ProductsRecipesView: React.FC = () => {
             <AlertTriangle className="w-5 h-5 text-rose-600" />
             <div>
               <h3 className="font-semibold text-slate-900 text-sm">Unit Economic Margin Traps & RTO Impact (Sheet31 Audit)</h3>
-              <p className="text-xs text-slate-500">Real landed cost, shipping, Meta acquisition CAC, and RTO penalty per order.</p>
+              <p className="text-xs text-slate-500">
+                Landed cost at the flat ₹{defaultCOGS} per unit used across the dashboard, plus shipping, Meta acquisition CAC and the RTO penalty per order.
+              </p>
             </div>
           </div>
           <SectionSourceBadge 
-            source="Finance Master Sheet (Copy of Shan-Report-Sheet.xlsx Sheet31 Landed COGS, Shipping & RTO)" 
+            source="Shan's report sheet, tab Sheet31 (shipping, CAC and RTO). Landed cost is the flat ₹125 per unit."
           />
         </div>
 
@@ -92,14 +121,22 @@ export const ProductsRecipesView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-              {Object.entries(unitEconomics).map(([key, item]) => (
+              {economics.map(({ key, item, units, flat }) => (
                 <tr key={key} className={`hover:bg-slate-50 transition-colors ${item.netProfitWithRTO < 0 ? 'bg-rose-50/50' : ''}`}>
                   <td className="py-2.5 px-3 font-semibold text-slate-900">
                     <span className="font-mono text-amber-800 mr-2 text-[11px] font-bold">{key}</span>
                     {item.name}
                   </td>
                   <td className="py-2.5 px-3 text-right font-bold text-slate-900 font-mono">{formatINR(item.sellingPrice)}</td>
-                  <td className="py-2.5 px-3 text-right font-mono text-slate-600">{formatINR(item.cogs)}</td>
+                  <td className="py-2.5 px-3 text-right font-mono text-slate-600">
+                    {formatINR(item.cogs)}
+                    {flat && units !== null && (
+                      <span className="block text-[10px] font-normal text-slate-400">
+                        {units} × ₹{defaultCOGS}
+                      </span>
+                    )}
+                    {!flat && <span className="block text-[10px] font-normal text-amber-700">sheet figure</span>}
+                  </td>
                   <td className="py-2.5 px-3 text-right font-mono text-slate-600">{formatINR(item.shipping)}</td>
                   <td className="py-2.5 px-3 text-right font-mono text-slate-600">{formatINR(item.metaCAC)}</td>
                   <td className="py-2.5 px-3 text-right font-mono text-rose-600">{formatINR(item.rtoCost)}</td>
@@ -249,7 +286,7 @@ export const ProductsRecipesView: React.FC = () => {
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-100">
-            <SectionSourceBadge source="Stock Desk Combo Formulas (kit/build.py deconstruction logic)" />
+            <SectionSourceBadge source="Stock desk combo formulas (how each combo splits into base products)" />
           </div>
         </div>
       </div>

@@ -22,6 +22,8 @@ export interface SourceFreshness {
   message: string;
   /** Short form for a card. */
   short: string;
+  /** What this source should have met, for a stale card ("should be under 36 hours old"). */
+  limit?: string;
   rule?: FreshnessRule;
 }
 
@@ -96,6 +98,16 @@ export function formatAge(hours: number): string {
 
 const formatLimit = (hours: number): string => (hours < 72 ? `${hours} hours` : `${Math.round(hours / 24)} days`);
 
+/** "8 days" or "40 hours": the age written out, for a note a person reads. */
+export function formatAgeLong(hours: number): string {
+  if (hours < 1) return 'under 1 hour';
+  if (hours < 48) {
+    const h = Math.round(hours);
+    return `${h} ${h === 1 ? 'hour' : 'hours'}`;
+  }
+  return `${Math.round(hours / 24)} days`;
+}
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** "25 Oct, 23:59" in IST, or "Aug 2026" for a monthly report. */
@@ -155,6 +167,7 @@ export function evaluateFreshness(key: LatencySourceKey, data: DashboardDataBund
         status: 'stale',
         message: `Stale: a nightly stock report is missing. The latest is from ${formatAsOf(asOf)} (${age} old), and the ${formatAsOf(due)} report should be in.`,
         short: `Stale, ${age} old`,
+        limit: 'a nightly stock report is missing',
         rule
       };
     }
@@ -170,6 +183,7 @@ export function evaluateFreshness(key: LatencySourceKey, data: DashboardDataBund
       status: 'stale',
       message: `Stale: the latest data is ${age} old, and this source should be no older than ${formatLimit(rule.staleAfterHours)}.${context}`,
       short: `Stale, ${age} old`,
+      limit: `should be under ${formatLimit(rule.staleAfterHours)} old`,
       rule
     };
   }

@@ -81,6 +81,39 @@ export const LATENCY_SOURCES: Record<LatencySourceKey, LatencySource> = {
 };
 
 /**
+ * Where each source comes from, in plain words, and whether it arrives by itself or because a person
+ * posts or types it. Shown on every card. The fuller version is the table on the Data Health page.
+ */
+export type SourceRoute = 'automated' | 'mixed' | 'manual' | 'static';
+
+export const SOURCE_ORIGIN: Record<LatencySourceKey, { from: string; route: SourceRoute }> = {
+  shopify: { from: 'Shopify store', route: 'automated' },
+  meta: { from: 'Meta Ads (Windsor)', route: 'automated' },
+  google: { from: 'Google Ads (Windsor)', route: 'automated' },
+  amazonSales: { from: 'Amazon sales (Windsor)', route: 'automated' },
+  amazonSettlement: { from: 'Amazon settlement (Windsor)', route: 'automated' },
+  amazonAds: { from: "Amazon Ads report (Shan's sheet)", route: 'manual' },
+  flipkart: { from: 'Flipkart reports (Slack)', route: 'manual' },
+  flipkartAds: { from: "Flipkart ads (Shan's sheet)", route: 'manual' },
+  nykaa: { from: "Nykaa report (Shan's sheet)", route: 'manual' },
+  myntra: { from: "Myntra report (Shan's sheet)", route: 'manual' },
+  purplleAds: { from: "Purplle ads (Shan's sheet)", route: 'manual' },
+  snapdealAds: { from: "Snapdeal ads (Shan's sheet)", route: 'manual' },
+  warehouse: { from: 'Warehouse stock report (Slack)', route: 'manual' },
+  inventoryPlan: { from: "Amazon FBA plan (Shan's sheet)", route: 'manual' },
+  callChase: { from: 'Call & Chase task', route: 'automated' },
+  browser: { from: 'File you upload', route: 'manual' },
+  reference: { from: 'Built-in reference data', route: 'static' }
+};
+
+export const ROUTE_WORD: Record<SourceRoute, string> = {
+  automated: 'Automatic',
+  mixed: 'Automatic + manual',
+  manual: 'Manual',
+  static: 'Built in'
+};
+
+/**
  * Sources that feed each channel's numbers. 'all' is Shopify + Amazon, which is what
  * the combined totals contain (Flipkart is shown separately, never summed in).
  */

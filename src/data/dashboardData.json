@@ -5,7 +5,7 @@
       "name": "Kumkumadi Oil 100ml",
       "category": "Face Oil / Serum",
       "mrp": 1250,
-      "defaultCost": 185,
+      "defaultCost": 125,
       "hero": true
     },
     {
@@ -13,7 +13,7 @@
       "name": "Kumkumadi Tailam 30ml",
       "category": "Face Oil / Serum",
       "mrp": 550,
-      "defaultCost": 95,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -21,7 +21,7 @@
       "name": "Kumkuma Oil 100ml (Formula B)",
       "category": "Face Oil",
       "mrp": 850,
-      "defaultCost": 135,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -29,7 +29,7 @@
       "name": "Skin Brightening Oil 100ml",
       "category": "Face Oil",
       "mrp": 650,
-      "defaultCost": 120,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -37,7 +37,7 @@
       "name": "Kumkumadi Night Serum 50ml",
       "category": "Serum",
       "mrp": 699,
-      "defaultCost": 100,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -45,7 +45,7 @@
       "name": "Kumkumadi Gel 100g",
       "category": "Gel / Moisturizer",
       "mrp": 450,
-      "defaultCost": 90,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -53,7 +53,7 @@
       "name": "Kumkumadi Night Cream 50g",
       "category": "Night Cream",
       "mrp": 650,
-      "defaultCost": 150,
+      "defaultCost": 125,
       "hero": true
     },
     {
@@ -61,7 +61,7 @@
       "name": "Kumkumadi Cream 100g",
       "category": "Cream",
       "mrp": 490,
-      "defaultCost": 95,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -69,7 +69,7 @@
       "name": "Relaxing Body Massage Oil 200ml",
       "category": "Body Oil",
       "mrp": 599,
-      "defaultCost": 110,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -77,7 +77,7 @@
       "name": "Body Toning Massage Oil 200ml",
       "category": "Body Oil",
       "mrp": 599,
-      "defaultCost": 115,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -85,7 +85,7 @@
       "name": "Vitamin C Oil 100ml",
       "category": "Face Oil",
       "mrp": 550,
-      "defaultCost": 110,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -93,7 +93,7 @@
       "name": "Vitamin C Cream",
       "category": "Cream",
       "mrp": 450,
-      "defaultCost": 95,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -101,7 +101,7 @@
       "name": "De-tan Cream 100g",
       "category": "Cream",
       "mrp": 450,
-      "defaultCost": 90,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -109,7 +109,7 @@
       "name": "Dark Spot Corrector Cream",
       "category": "Cream",
       "mrp": 499,
-      "defaultCost": 105,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -125,7 +125,7 @@
       "name": "Age Repair Face Polish",
       "category": "Scrub / Polish",
       "mrp": 399,
-      "defaultCost": 85,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -133,7 +133,7 @@
       "name": "Ultra Skin Oil (Vitamin E) 100ml",
       "category": "Face Oil",
       "mrp": 550,
-      "defaultCost": 105,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -141,7 +141,7 @@
       "name": "Pigmentation Serum 30ml",
       "category": "Serum",
       "mrp": 599,
-      "defaultCost": 110,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -149,7 +149,7 @@
       "name": "Nalpamaradi Thailam 100ml",
       "category": "Face & Body Oil",
       "mrp": 650,
-      "defaultCost": 130,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -157,7 +157,7 @@
       "name": "Skin Lightening Mask 100g",
       "category": "Face Mask",
       "mrp": 425,
-      "defaultCost": 85,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -165,7 +165,7 @@
       "name": "Acne Calming Sunscreen SPF50",
       "category": "Sunscreen",
       "mrp": 499,
-      "defaultCost": 115,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -173,7 +173,7 @@
       "name": "Acne Clearing Face Mask 100g",
       "category": "Face Mask",
       "mrp": 399,
-      "defaultCost": 80,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -181,7 +181,7 @@
       "name": "Acne Clearing Face Wash (Tea Tree) 120ml",
       "category": "Face Wash",
       "mrp": 375,
-      "defaultCost": 75,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -189,7 +189,7 @@
       "name": "Tea Tree Serum 30ml",
       "category": "Serum",
       "mrp": 499,
-      "defaultCost": 95,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -197,7 +197,7 @@
       "name": "Chia Seeds Sleep Mask",
       "category": "Sleep Mask",
       "mrp": 499,
-      "defaultCost": 90,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -205,7 +205,7 @@
       "name": "Rose Water Toner 100ml",
       "category": "Toner",
       "mrp": 299,
-      "defaultCost": 60,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -213,7 +213,7 @@
       "name": "Aloevera Gel 100g",
       "category": "Gel",
       "mrp": 275,
-      "defaultCost": 55,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -229,7 +229,7 @@
       "name": "Hairfall Control Shampoo 500ml",
       "category": "Hair Care",
       "mrp": 499,
-      "defaultCost": 95,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -237,7 +237,7 @@
       "name": "Hair Mask 150g",
       "category": "Hair Care",
       "mrp": 499,
-      "defaultCost": 100,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -245,7 +245,7 @@
       "name": "Rosemary Hair Oil 100ml",
       "category": "Hair Care",
       "mrp": 599,
-      "defaultCost": 110,
+      "defaultCost": 125,
       "hero": true
     },
     {
@@ -253,7 +253,7 @@
       "name": "Rosemary Hair Mist 100ml",
       "category": "Hair Care",
       "mrp": 399,
-      "defaultCost": 80,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -261,7 +261,7 @@
       "name": "Rosemary Shampoo 250ml",
       "category": "Hair Care",
       "mrp": 450,
-      "defaultCost": 85,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -269,7 +269,7 @@
       "name": "Onion Hair Oil 100ml",
       "category": "Hair Care",
       "mrp": 499,
-      "defaultCost": 95,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -277,7 +277,7 @@
       "name": "Protective Hair Oil 100ml",
       "category": "Hair Care",
       "mrp": 499,
-      "defaultCost": 95,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -285,7 +285,7 @@
       "name": "Kumkumadi Face Wash 100ml",
       "category": "Face Wash",
       "mrp": 375,
-      "defaultCost": 75,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -293,7 +293,7 @@
       "name": "Kumkumadi Mask 100g",
       "category": "Face Mask",
       "mrp": 425,
-      "defaultCost": 85,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -301,7 +301,7 @@
       "name": "Kumkumadi Under Eye Cream 25g",
       "category": "Eye Cream",
       "mrp": 499,
-      "defaultCost": 95,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -309,7 +309,7 @@
       "name": "Kumkumadi Ubtan Face Wash",
       "category": "Face Wash",
       "mrp": 399,
-      "defaultCost": 80,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -317,7 +317,7 @@
       "name": "Kumkumadi Sleep Mask 50g",
       "category": "Sleep Mask",
       "mrp": 549,
-      "defaultCost": 105,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -325,7 +325,7 @@
       "name": "Kumkumadi Body Massage Oil 200ml",
       "category": "Body Oil",
       "mrp": 699,
-      "defaultCost": 135,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -333,7 +333,7 @@
       "name": "Kumkumadi Brightening Serum SPF50",
       "category": "Sunscreen / Serum",
       "mrp": 599,
-      "defaultCost": 120,
+      "defaultCost": 125,
       "hero": false
     },
     {
@@ -341,7 +341,7 @@
       "name": "Kumkumadi Toner 100ml",
       "category": "Toner",
       "mrp": 349,
-      "defaultCost": 65,
+      "defaultCost": 125,
       "hero": false
     }
   ],

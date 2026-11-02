@@ -92,7 +92,7 @@ export const ShopifyStoreView: React.FC = () => {
         subtitle={`Tracking auravedic.com sessions, conversion funnel, COD mix and RTO risk for ${periodLabel}`}
         extraRight={
           <SectionSourceBadge 
-            source="Shopify Analytics (ShopifyQL FROM sales/sessions)" 
+            source="Shopify store analytics (sales and sessions)"
             syncCadence="Daily 04:51 IST"
           />
         }
@@ -143,7 +143,7 @@ export const ShopifyStoreView: React.FC = () => {
             <p className="text-xs text-slate-500">Track drop-off from visitor sessions down to completed orders.</p>
           </div>
           <SectionSourceBadge 
-            source="Shopify Analytics (FROM sessions GROUP BY landing_page_path)" 
+            source="Shopify store analytics (sessions by landing page)"
           />
         </div>
 
@@ -185,7 +185,7 @@ export const ShopifyStoreView: React.FC = () => {
             <p className="text-xs text-slate-500">Operational risk analysis: High RTO flags in Bihar, Rajasthan, West Bengal, Assam, and J&K.</p>
           </div>
           <SectionSourceBadge 
-            source="Shopify Order Master + Courier Remittance Telemetry (Call & Chase Ops)" 
+            source="Shopify orders + courier remittance (Call & Chase task)"
             syncCadence="Daily 07:00 IST"
           />
         </div>

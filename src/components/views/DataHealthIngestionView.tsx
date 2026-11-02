@@ -146,7 +146,9 @@ export const DataHealthIngestionView: React.FC = () => {
 
         <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
           <SectionSourceBadge 
-            source="Client-Side Parser (PapaParse CSV & SheetJS XLSX) • Zero External Transfer" 
+            source="A file you upload here. It is read in your browser and nothing is sent anywhere."
+            latency="Instant"
+            sources={['browser']}
           />
         </div>
       </div>
@@ -171,7 +173,10 @@ export const DataHealthIngestionView: React.FC = () => {
             <div className="text-slate-500 font-semibold mb-1">Standard Fallback COGS</div>
             <div className="text-xl font-bold text-slate-900 font-mono">₹{defaultCOGS} / unit</div>
             <p className="text-[11px] text-slate-500 mt-1">
-              Applied to listings without specific landed product costs in Sheet31.
+              Applied to every product and combo, in the P&amp;L, Advertising break-even and the Products table. Sheet31's own landed costs are not used.
+            </p>
+            <p className="text-[10px] text-slate-500 mt-1.5">
+              <span className="font-semibold text-slate-600">Data from:</span> a built-in assumption, changeable on the P&amp;L page.
             </p>
           </div>
 
@@ -181,6 +186,9 @@ export const DataHealthIngestionView: React.FC = () => {
             <p className="text-[11px] text-slate-500 mt-1">
               Applied to Shopify orders with net order value &gt; ₹499 (free shipping threshold).
             </p>
+            <p className="text-[10px] text-slate-500 mt-1.5">
+              <span className="font-semibold text-slate-600">Data from:</span> a built-in assumption, changeable on the P&amp;L page.
+            </p>
           </div>
 
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
@@ -188,6 +196,9 @@ export const DataHealthIngestionView: React.FC = () => {
             <div className="text-xl font-bold text-slate-900 font-mono">&gt; ₹50,000 / purchase</div>
             <p className="text-[11px] text-slate-500 mt-1">
               Ad-days exceeding ₹50k per purchase are excluded (e.g., MP2 on 21 Jul 2026).
+            </p>
+            <p className="text-[10px] text-slate-500 mt-1.5">
+              <span className="font-semibold text-slate-600">Data from:</span> a cleaning rule applied to the Meta feed from Windsor.
             </p>
           </div>
         </div>

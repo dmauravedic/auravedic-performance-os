@@ -6,7 +6,8 @@ import { ViewFilterBar } from '../common/ViewFilterBar';
 import { SectionSourceBadge } from '../common/SectionSourceBadge';
 import { formatINR, formatPercent, formatROAS, formatNumber } from '../../utils/formatters';
 import { getFilteredMetrics } from '../../utils/calculations';
-import { resolveLatency } from '../../data/channelLatency';
+import { defaultCardSources, resolveLatency } from '../../data/channelLatency';
+import { StatTile } from '../common/StatTile';
 import { FeedBadge } from '../common/FeedBadge';
 import type { ChannelFilter } from '../../context/DashboardContext';
 import {
@@ -129,7 +130,7 @@ export const ExecutiveSummaryView: React.FC = () => {
             Core Financial & Marketing KPIs
           </span>
           <SectionSourceBadge 
-            source="Blended Cross-Channel Pipeline (Shopify Analytics + Amazon SP-API + Windsor.ai Meta & Google)"
+            source="Shopify store + Amazon Seller Central + Windsor (Meta and Google ads)"
             channel={channel}
           />
         </div>
@@ -196,36 +197,41 @@ export const ExecutiveSummaryView: React.FC = () => {
 
       {/* Secondary KPI Row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200">
-          <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Total Orders ({periodLabel})</div>
-          <div className="text-xl font-bold text-slate-900 mt-1">{formatNumber(orders)}</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">
-            vs prior: {formatNumber(priorOrders)} ({deltaOrders >= 0 ? '+' : ''}{deltaOrders.toFixed(1)}%)
-          </div>
-        </div>
+        <StatTile
+          title={`Total Orders (${periodLabel})`}
+          value={formatNumber(orders)}
+          note={
+            <span className="text-slate-500">
+              vs prior: {formatNumber(priorOrders)} ({deltaOrders >= 0 ? '+' : ''}{deltaOrders.toFixed(1)}%)
+            </span>
+          }
+          sources={defaultCardSources('executive', channel)}
+        />
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200">
-          <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Average Order Value (AOV)</div>
-          <div className="text-xl font-bold text-slate-900 mt-1">{formatINR(aov)}</div>
-          <div className="text-[11px] text-slate-500 mt-0.5">
-            vs prior: {formatINR(priorAov)}
-          </div>
-        </div>
+        <StatTile
+          title="Average Order Value (AOV)"
+          value={formatINR(aov)}
+          note={<span className="text-slate-500">vs prior: {formatINR(priorAov)}</span>}
+          sources={defaultCardSources('executive', channel)}
+        />
 
         {(channel === 'shopify' || channel === 'all') && (
-          <div className="bg-white p-4 rounded-xl border border-slate-200">
-            <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Customer CAC (Shopify)</div>
-            <div className="text-xl font-bold text-slate-900 mt-1">₹{shopifyOrders > 0 ? Math.round(shopifyAdSpend / shopifyOrders).toLocaleString('en-IN') : '0'}</div>
-            <div className="text-[11px] text-emerald-600 mt-0.5">Payback period: ~38 days</div>
-          </div>
+          <StatTile
+            title="Customer CAC (Shopify)"
+            value={`₹${shopifyOrders > 0 ? Math.round(shopifyAdSpend / shopifyOrders).toLocaleString('en-IN') : '0'}`}
+            note={<span className="text-emerald-600">Payback period: ~38 days</span>}
+            sources={['shopify', 'meta', 'google']}
+          />
         )}
 
         {(channel === 'amazon' || channel === 'all') && (
-          <div className="bg-white p-4 rounded-xl border border-slate-200">
-            <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Amazon TACOS (Est)</div>
-            <div className="text-xl font-bold text-amber-700 mt-1">{amazonSales > 0 ? (amazonAdSpend / amazonSales * 100).toFixed(1) : '0.0'}%</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">Billed ads in settlement</div>
-          </div>
+          <StatTile
+            title="Amazon TACOS (Est)"
+            value={`${amazonSales > 0 ? (amazonAdSpend / amazonSales * 100).toFixed(1) : '0.0'}%`}
+            valueClassName="text-amber-700"
+            note={<span className="text-slate-500">Billed ads in settlement</span>}
+            sources={['amazonSales', 'amazonSettlement']}
+          />
         )}
       </div>
 
@@ -292,7 +298,7 @@ export const ExecutiveSummaryView: React.FC = () => {
         <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
           <SectionSourceBadge 
             source="Daily Time-Series (Shopify Gross-Discounts, Amazon Ordered Sales, Windsor Meta 5-Accounts & Google Ads)" 
-            pipeline="dailyRecords (60-day calibrated series)"
+            pipeline="60-day daily series, calibrated to the handbook totals"
             channel={channel}
           />
         </div>

@@ -197,7 +197,7 @@ export const AdvertisingView: React.FC = () => {
           subtitle="Findings computed from the figures on this page. They update with the period, COGS and shipping assumptions."
           badge={
             <SectionSourceBadge
-              source="Daily ad series + Meta account seed + Handbook monthly figures"
+              source="Daily ad series + Meta account figures + handbook monthly figures"
               showLatency={false}
             />
           }

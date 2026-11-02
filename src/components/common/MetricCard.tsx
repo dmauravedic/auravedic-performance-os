@@ -2,6 +2,8 @@ import React from 'react';
 import { ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
 import { useDashboard } from '../../context/DashboardContext';
 import { defaultCardSources, type LatencySourceKey } from '../../data/channelLatency';
+import { useSourceFreshness, worstOf } from '../../utils/freshness';
+import { CardSource } from './CardSource';
 import { FreshnessLine } from './FreshnessChip';
 
 interface MetricCardProps {
@@ -38,9 +40,15 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 }) => {
   const { currentView, channel } = useDashboard();
   const freshnessSources = sources === false ? [] : sources ?? defaultCardSources(currentView, channel);
+  const freshness = useSourceFreshness(freshnessSources);
+  const isStale = worstOf(freshness)?.status === 'stale';
 
   return (
-    <div className={`bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden ${className}`}>
+    <div
+      className={`bg-white rounded-xl border p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden ${
+        isStale ? 'border-rose-300 ring-1 ring-rose-200' : 'border-slate-200'
+      } ${className}`}
+    >
       <div className="flex items-center justify-between gap-2 mb-2">
         <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</span>
         <div className="flex items-center gap-1.5">
@@ -100,7 +108,8 @@ export const MetricCard: React.FC<MetricCardProps> = ({
         </div>
       )}
 
-      {freshnessSources.length > 0 && <FreshnessLine sources={freshnessSources} className="mt-2.5" />}
+      {freshnessSources.length > 0 && <CardSource sources={freshnessSources} className="mt-2.5" />}
+      {freshness.length > 0 && <FreshnessLine items={freshness} className="mt-2" />}
     </div>
   );
 };

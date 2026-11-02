@@ -237,7 +237,7 @@ export const SOURCE_ROWS: SourceRow[] = [
     origin: "Shan's report sheet, tab Sheet31",
     arrives: 'Manual',
     schedule: 'Updated by hand. No date',
-    today: 'Shown on the Products page. The P&L itself uses a flat ₹125 per unit, which differs from the sheet.',
+    today: 'Read, but not used for cost. Every product and combo is costed at a flat ₹125 per unit (the sheet shows about ₹100) until finance supplies real landed costs.',
     usedOn: 'Products & Recipes, P&L (assumption)'
   },
   {
