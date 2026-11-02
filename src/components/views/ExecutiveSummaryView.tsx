@@ -7,6 +7,7 @@ import { SectionSourceBadge } from '../common/SectionSourceBadge';
 import { formatINR, formatPercent, formatROAS, formatNumber } from '../../utils/formatters';
 import { getFilteredMetrics } from '../../utils/calculations';
 import { resolveLatency } from '../../data/channelLatency';
+import { FeedBadge } from '../common/FeedBadge';
 import type { ChannelFilter } from '../../context/DashboardContext';
 import {
   TrendingUp,
@@ -335,9 +336,16 @@ export const ExecutiveSummaryView: React.FC = () => {
 
                 return (
                   <tr key={idx} className={`hover:bg-slate-50 transition-colors ${isSelected ? 'bg-amber-50/80' : ''}`}>
-                    <td className="py-2.5 px-3 font-semibold text-slate-900 flex items-center gap-2">
-                      {m.type === 'Store' ? <ShoppingBag className="w-4 h-4 text-amber-600" /> : <Store className="w-4 h-4 text-blue-600" />}
-                      {m.channel}
+                    <td className="py-2.5 px-3">
+                      <div className="font-semibold text-slate-900 flex items-center gap-2">
+                        {m.type === 'Store' ? <ShoppingBag className="w-4 h-4 text-amber-600" /> : <Store className="w-4 h-4 text-blue-600" />}
+                        {m.channel}
+                      </div>
+                      {SCORECARD_CHANNEL[m.channel] && (
+                        <div className="mt-1">
+                          <FeedBadge channel={SCORECARD_CHANNEL[m.channel]} />
+                        </div>
+                      )}
                     </td>
                     <td className="py-2.5 px-3">
                       <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">

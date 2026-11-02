@@ -1,5 +1,5 @@
 import type { DailyRecord } from '../data/dailyData';
-import type { MetaAccount, MonthlyMetric } from '../data/initialData';
+import type { MarketplaceAdsItem, MetaAccount, MonthlyMetric } from '../data/initialData';
 import type { AdSetDay, AdSetSpec } from '../data/adLevelData';
 import { formatINR } from './formatters';
 
@@ -518,7 +518,7 @@ export interface Insight {
   body: string;
   stat: string;
   statLabel: string;
-  tag?: 'Illustrative' | 'Estimate';
+  tag?: 'Illustrative' | 'Estimate' | 'Needs check';
 }
 
 const pct = (v: number, digits = 0) => `${v >= 0 ? '+' : ''}${v.toFixed(digits)}%`;
@@ -531,9 +531,18 @@ export function buildInsights(input: {
   accounts: AccountRow[];
   months: MonthPoint[];
   adSets: AdSetRow[];
+  /** Monthly ad reports from the marketplaces themselves (Shan's report sheet). */
+  marketplaceAds?: MarketplaceAdsItem[];
 }): Insight[] {
   const { slice, be, cogsRate, shippingRate, accounts, months, adSets } = input;
+  const marketplaceAds = input.marketplaceAds ?? [];
   const out: Insight[] = [];
+
+  // Amazon's own ad report, last 12 months with a channel revenue to measure against
+  const amazonReport = marketplaceAds
+    .filter(a => a.channel === 'Amazon.in' && a.tacos != null)
+    .sort((a, b) => a.monthKey.localeCompare(b.monthKey))
+    .slice(-12);
 
   const shopifySales = sum(slice.map(r => r.shopifyPreReturns));
   const storeAds = sum(slice.map(r => r.metaSpend + r.googleSpend));
@@ -602,15 +611,51 @@ export function buildInsights(input: {
     const first = months[0];
     const last = months[months.length - 1];
 
-    out.push({
-      id: 'tacos',
-      tone: last.tacos > first.tacos + 3 ? 'risk' : 'info',
-      title: 'Amazon ad load is rising',
-      body: `Amazon ads (settlement-billed) went from ${first.tacos.toFixed(1)}% of Amazon sales in ${first.month} to ${last.tacos.toFixed(1)}% in ${last.month}, while Amazon sales moved ${pct((last.amazonSales / first.amazonSales - 1) * 100)} and ad spend ${pct((last.amazonAds / first.amazonAds - 1) * 100)}.`,
-      stat: `${last.tacos.toFixed(1)}%`,
-      statLabel: `TACOS, from ${first.tacos.toFixed(1)}%`,
-      tag: 'Estimate'
-    });
+    if (amazonReport.length >= 2) {
+      // The marketplace's own ad report beats the settlement-based estimate whenever it exists
+      const f = amazonReport[0];
+      const l = amazonReport[amazonReport.length - 1];
+      const change = (l.tacos as number) - (f.tacos as number);
+      out.push({
+        id: 'tacos',
+        tone: change > 3 ? 'risk' : 'info',
+        title: change > 3 ? 'Amazon ad load is rising' : change < -3 ? 'Amazon ad load is falling' : 'Amazon ad load is steady',
+        body: `Amazon's own ad report puts ad spend at ${(f.tacos as number).toFixed(1)}% of Amazon sales in ${f.month} and ${(l.tacos as number).toFixed(1)}% in ${l.month}. Over the 12 months it ranged from ${Math.min(...amazonReport.map(a => a.tacos as number)).toFixed(1)}% to ${Math.max(...amazonReport.map(a => a.tacos as number)).toFixed(1)}%.`,
+        stat: `${(l.tacos as number).toFixed(1)}%`,
+        statLabel: `TACOS, from ${(f.tacos as number).toFixed(1)}%`
+      });
+    } else {
+      out.push({
+        id: 'tacos',
+        tone: last.tacos > first.tacos + 3 ? 'risk' : 'info',
+        title: 'Amazon ad load is rising',
+        body: `Amazon ads (settlement-billed) went from ${first.tacos.toFixed(1)}% of Amazon sales in ${first.month} to ${last.tacos.toFixed(1)}% in ${last.month}, while Amazon sales moved ${pct((last.amazonSales / first.amazonSales - 1) * 100)} and ad spend ${pct((last.amazonAds / first.amazonAds - 1) * 100)}.`,
+        stat: `${last.tacos.toFixed(1)}%`,
+        statLabel: `TACOS, from ${first.tacos.toFixed(1)}%`,
+        tag: 'Estimate'
+      });
+    }
+
+    // The two Amazon ad figures: the ad report vs the settlement-based estimate behind combined
+    // ad spend, MER and the P&L. The monthly handbook figures cover 2026, hence the year check.
+    const compared = [...amazonReport]
+      .reverse()
+      .find(a => a.monthKey.startsWith('2026-') && months.some(m => m.month === a.month.slice(0, 3) && m.amazonAds > 0));
+    if (compared) {
+      const est = months.find(m => m.month === compared.month.slice(0, 3))!;
+      const gap = est.amazonAds / compared.adSpend - 1;
+      if (Math.abs(gap) > 0.1) {
+        out.push({
+          id: 'amazon-ads-gap',
+          tone: 'risk',
+          title: "Amazon's two ad figures disagree",
+          body: `Amazon's ad report shows ${formatINR(compared.adSpend, true)} of ad spend for ${compared.month} (${(compared.tacos as number).toFixed(1)}% of Amazon sales). The settlement-based estimate behind combined ad spend, MER and the P&L is ${formatINR(est.amazonAds, true)}, ${Math.abs(gap * 100).toFixed(0)}% ${gap > 0 ? 'higher' : 'lower'}. Check which one Amazon actually billed.`,
+          stat: pct(gap * 100),
+          statLabel: 'estimate vs ad report',
+          tag: 'Needs check'
+        });
+      }
+    }
 
     out.push({
       id: 'mer-trend',

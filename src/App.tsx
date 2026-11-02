@@ -1,6 +1,7 @@
 import React from 'react';
 import { DashboardProvider, useDashboard } from './context/DashboardContext';
 import { FreshnessStrip } from './components/layout/FreshnessStrip';
+import { StaleBanner } from './components/layout/StaleBanner';
 import { Header } from './components/layout/Header';
 import { Sidebar } from './components/layout/Sidebar';
 import { ExecutiveSummaryView } from './components/views/ExecutiveSummaryView';
@@ -19,6 +20,7 @@ const DashboardContent: React.FC = () => {
     <div className="min-h-screen flex flex-col bg-slate-50 font-sans">
       {/* 1. Real-Time Freshness Strip */}
       <FreshnessStrip />
+      <StaleBanner />
 
       {/* 2. Global Header */}
       <Header />

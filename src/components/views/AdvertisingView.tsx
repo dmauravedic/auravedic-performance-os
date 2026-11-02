@@ -21,6 +21,7 @@ import { DailySpendChart, DailyRoasChart, MonthlyRoasChart, MonthlySpendChart } 
 import { AccountLeague } from '../ads/AccountLeague';
 import { BudgetSimulator } from '../ads/BudgetSimulator';
 import { CreativeDiagnostics } from '../ads/CreativeDiagnostics';
+import { MarketplaceAds } from '../ads/MarketplaceAds';
 
 const SectionHeader: React.FC<{ title: string; subtitle: string; badge?: React.ReactNode }> = ({ title, subtitle, badge }) => (
   <div className="flex flex-wrap items-end justify-between gap-3">
@@ -84,7 +85,8 @@ export const AdvertisingView: React.FC = () => {
   const months = monthlySeries(monthlyPerformance);
   const adSets = buildAdSetRows(adSetDays, AD_SETS, new Set(slice.map(r => r.date)));
   const funnel = accountFunnel(adSets);
-  const insights = buildInsights({ slice, be, cogsRate: defaultCOGS, shippingRate: flatShipping, accounts, months, adSets });
+  const marketplaceAds = data.marketplaceAds ?? [];
+  const insights = buildInsights({ slice, be, cogsRate: defaultCOGS, shippingRate: flatShipping, accounts, months, adSets, marketplaceAds });
 
   return (
     <div className="space-y-6">
@@ -108,6 +110,7 @@ export const AdvertisingView: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="Meta Spend (5 Accounts)"
+          sources={['meta']}
           value={formatINR(metaSpend)}
           subtitle={`${formatNumber(metaPurchases)} purchases | ${periodLabel}`}
           badgeText="Meta Ads"
@@ -117,6 +120,7 @@ export const AdvertisingView: React.FC = () => {
 
         <MetricCard
           title="Google Ads Spend"
+          sources={['google']}
           value={formatINR(googleSpend)}
           subtitle={`${googleConversions.toFixed(1)} conversions | ${periodLabel}`}
           badgeText="Google Ads"
@@ -126,6 +130,7 @@ export const AdvertisingView: React.FC = () => {
 
         <MetricCard
           title="Amazon Billed Ads"
+          sources={['amazonSettlement']}
           value={formatINR(amazonAds)}
           subtitle={`Settlement deduction | ${periodLabel}`}
           badgeText="Amazon SP"
@@ -135,6 +140,7 @@ export const AdvertisingView: React.FC = () => {
 
         <MetricCard
           title="Flipkart Ads Spend"
+          sources={['flipkart']}
           value={formatINR(flipkartAds)}
           subtitle={`Campaign spend | ${periodLabel}`}
           badgeText="Flipkart Ads"
@@ -147,6 +153,7 @@ export const AdvertisingView: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="All Paid Media"
+          sources={['meta', 'google', 'amazonSettlement', 'flipkart']}
           value={formatINR(totalPaid)}
           subtitle="Meta + Google + Amazon + Flipkart ads"
           badgeText="Spend"
@@ -164,6 +171,7 @@ export const AdvertisingView: React.FC = () => {
 
         <MetricCard
           title="Break-even ROAS"
+          sources={['shopify']}
           value={formatROAS(be.roas)}
           subtitle={`AOV ${formatINR(be.aov)} − COGS ${formatINR(be.cogsPerOrder)} − shipping ${formatINR(be.shippingPerOrder)}`}
           badgeText="Shopify"
@@ -173,6 +181,7 @@ export const AdvertisingView: React.FC = () => {
 
         <MetricCard
           title="Platform Over-claim"
+          sources={['shopify', 'meta', 'google']}
           value={`${overclaim.toFixed(2)}x`}
           subtitle="Meta + Google reported value ÷ actual Shopify sales"
           badgeText="Attribution"
@@ -208,6 +217,22 @@ export const AdvertisingView: React.FC = () => {
           }
         />
         <PlatformScorecard rows={platforms} periodLabel={periodLabel} />
+      </div>
+
+      {/* Marketplace ads: each marketplace's own monthly ad report */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
+        <SectionHeader
+          title="Marketplace ads, month by month"
+          subtitle="Spend, ad revenue, ROAS and TACOS from each marketplace's own ad report, independent of the period selector."
+          badge={
+            <SectionSourceBadge
+              source="Shan's Report Sheet (Amazon Ads, FKT, Nykaa Ads, Myntra Ads, Purplle Ads, Snapdeal Ads tabs)"
+              latency="Entered by hand, monthly"
+              sources={['amazonAds', 'flipkartAds', 'nykaa', 'myntra']}
+            />
+          }
+        />
+        <MarketplaceAds ads={marketplaceAds} />
       </div>
 
       {/* Daily charts: one axis each */}

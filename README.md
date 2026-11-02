@@ -64,11 +64,11 @@ npm run preview
    - Unit Economic Margin Traps: Real SKU economics from Sheet31 exposing loss-making bundles (e.g. `KNS+KNC` combo losing ₹235 per order after RTO).
 
 7. **Warehouse & Stock Operations**:
-   - Stock by Warehouse: Coimbatore (CBE: D2C Available, Bulk Reserve, SIH) vs Mumbai closing stock.
+   - Warehouse level filter (All / Coimbatore / Mumbai) drives the cards, the days-of-cover table and the factory requirement. A hub's cover counts only the share of sales that ships from it (CBE share starts from the Shopify order mix by state and can be overwritten).
    - Dispatch Rule: South India orders (TN, KA, KL, AP, TS, PY) ship from CBE; rest ship from Mumbai.
-   - Days of Cover (DOC): Color-coded alerts (Red &lt;7d, Amber 7–14d, Green &gt;14d).
-   - Automated Reorder Triggers: Reorder batch suggestions to reach 45 days of safety cover.
-   - Amazon FBA Inbound Planning: Restock quantities needed.
+   - Days of Cover (DOC): Color-coded alerts (Red &lt;7d, Amber 7–14d, Green &gt;14d). Reorder batches top stock up to 45 days.
+   - **Planning period and factory requirement**: pick a date range and safety stock; the page works out units to produce per product for the chosen warehouse (demand, plus safety stock, minus stock expected on day one, after sales since the last stock report). **Download for factory (.xlsx)** exports it with live formulas, so the dates can also be changed inside Excel.
+   - **Marketplace inventory**: Amazon FBA stock projected over the same period (days of cover, stock at end, units to send, beside what the plan sheet suggests), with **Download marketplace plan (.xlsx)**. Flipkart, Nykaa, Myntra, Purplle and Snapdeal have no stock report yet; the download includes a fill-in sheet for them wired to the same dates.
 
 8. **Data Health & In-App Ingestion**:
    - In-App Report Uploader: Drag and drop Amazon Business Reports (`.csv`), Windsor exports, or `Shan-Report-Sheet.xlsx` to parse and update dashboard state on the fly.
@@ -120,6 +120,7 @@ If the sheet has bad data (a non-number in a number column, a missing column, a 
 | `Amz-Inventory Plan` A1:I12 | Amazon inventory plan |
 | `Nykaa Ads` A1:L200 | Nykaa sales, orders, AOV, ad spend and ROAS (latest month with orders) |
 | `Myntra Ads` A1:I200 | The same for Myntra |
+| `Amazon Ads` A1:BD12, `FKT` A1:H70, `Purplle Ads` A1:F80, `Snapdeal Ads` A1:F80 (and Nykaa / Myntra Ads again) | The monthly "Marketplace ads" section on the Advertising page: spend, ad revenue, ROAS and TACOS, last 24 reported months each. A marketplace with no recent report is flagged. |
 
 **Windsor.ai exports** write straight into the feed workbook, one tab each, and replace the built-in daily figures for the source they cover. Set them up in Windsor's own dashboard (destination Google Sheets, this workbook, the tab name below, daily at 06:00 IST, last 90 days). The workbook's README tab lists the exact fields to select.
 
@@ -133,6 +134,16 @@ If the sheet has bad data (a non-number in a number column, a missing column, a 
 Column names are matched loosely (case, spaces and underscores are ignored), a missing required column stops the run and lists what was found, and repeated rows from an appending export are ignored. A source with no rows leaves the built-in figures alone. **Only days already in the dashboard (27 Aug to 25 Oct) are overwritten for now**: days after that are reported in the run log and not added, because the app's period logic (MTD, last 7 days, prior periods) is still tied to the bundled 60-day window.
 
 The month each channel's figures cover is shown next to them. Channel shares are recomputed across the listed channels so they add to 100%. Keep the `Sheet31` table within rows 1 to 11 and put nothing sensitive in these tabs or ranges. **Do not keep passwords or payment-portal logins in any sheet that is shared with the service account or with a link.**
+
+**Is the data current?** Every card and section shows when its data was last updated and checks that against how late the source is allowed to be. The Data Health page lists every source, where it comes from and whether it is current. A source can be in one of three states:
+
+| State | Meaning | Examples |
+|---|---|---|
+| Fresh | Inside its normal schedule | Shopify, Meta, Google within 36 hours |
+| Note (blue) | Behind, but by design, so it is **not** flagged | Flipkart runs about a day behind (stale after 3 days). Amazon runs 1–2 days behind (stale after 3). The stock desk skips Sunday. Monthly reports are entered after the month closes |
+| Stale (red) | Past its accepted delay: the figures are not current. A red banner appears at the top | Shopify not updated for more than 36 hours. A missed nightly stock report |
+
+The limits live in `FRESHNESS_RULES` in `src/data/channelLatency.ts`, and the table of sources in `src/data/dataSources.ts`. The dashboard shows a bundled snapshot until the sheet sync is switched on, so with the snapshot ending on 25 Oct every daily source will read as stale from the 27th until the sync is live. To see how the page looks on another day, add `?now=2026-10-27T10:00` to the address.
 
 **Local use**
 

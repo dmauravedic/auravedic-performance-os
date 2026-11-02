@@ -2,87 +2,176 @@ import React, { useState } from 'react';
 import { useDashboard } from '../../context/DashboardContext';
 import { MetricCard } from '../common/MetricCard';
 import { SectionSourceBadge } from '../common/SectionSourceBadge';
-import { formatINR, formatPercent, formatNumber } from '../../utils/formatters';
+import { PlanningControls, type PlanState } from '../inventory/PlanningControls';
+import { FactoryRequirement } from '../inventory/FactoryRequirement';
+import { MarketplaceInventory } from '../inventory/MarketplaceInventory';
+import { formatNumber } from '../../utils/formatters';
+import { formatAsOf, parseAsOf, useNow } from '../../utils/freshness';
 import {
-  Boxes,
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  Warehouse,
-  Truck,
-  ArrowRight,
-  TrendingDown,
-  Sparkles,
-  ShieldAlert
-} from 'lucide-react';
+  HUB_LABEL,
+  addDays,
+  cbeShareFromStates,
+  daysOfCover,
+  healthOf,
+  hubShare,
+  hubStock,
+  istDate,
+  periodDays,
+  type Hub,
+  type PlanInputs
+} from '../../utils/inventoryPlan';
+import { exportFactoryRequirement, exportMarketplacePlan } from '../../utils/exportWorkbooks';
+import { Warehouse } from 'lucide-react';
+
+const HUBS: Hub[] = ['all', 'cbe', 'mumbai'];
+type StatusFilter = 'all' | 'critical' | 'warning' | 'healthy';
+
+const docClass = (doc: number) => (doc < 7 ? 'text-rose-700 font-extrabold' : doc <= 14 ? 'text-amber-700' : 'text-emerald-700');
 
 export const InventoryOpsView: React.FC = () => {
   const { data } = useDashboard();
-  const { warehouseStock, amazonInventoryPlan } = data;
+  const { warehouseStock, amazonInventoryPlan, stateCodRisk, freshness } = data;
+  const now = useNow();
 
-  const [filterStatus, setFilterStatus] = useState<'all' | 'critical' | 'warning' | 'healthy'>('all');
+  const [hub, setHub] = useState<Hub>('all');
+  const [filterStatus, setFilterStatus] = useState<StatusFilter>('all');
 
-  const filteredStock = warehouseStock.filter(item => {
-    if (filterStatus === 'critical') return item.daysOfCover < 7;
-    if (filterStatus === 'warning') return item.daysOfCover >= 7 && item.daysOfCover <= 14;
-    if (filterStatus === 'healthy') return item.daysOfCover > 14;
-    return true;
+  const derivedCbeSharePct = Math.round(cbeShareFromStates(stateCodRisk) * 100);
+  const [plan, setPlan] = useState<PlanState>(() => {
+    const start = addDays(istDate(now), 1);
+    return { start, end: addDays(start, 44), bufferPct: 10, cbeSharePct: derivedCbeSharePct };
   });
 
-  const criticalItems = warehouseStock.filter(item => item.daysOfCover < 7);
-  const warningItems = warehouseStock.filter(item => item.daysOfCover >= 7 && item.daysOfCover <= 14);
+  const stockAsOfDate = parseAsOf(freshness.warehouseStock);
+  const stockDate = istDate(stockAsOfDate ?? now);
+  const stockAsOfLabel = stockAsOfDate ? `${formatAsOf(stockAsOfDate)} IST` : 'date not recorded';
+  const inputs: PlanInputs = {
+    start: plan.start,
+    end: plan.end,
+    buffer: plan.bufferPct / 100,
+    cbeShare: plan.cbeSharePct / 100,
+    stockDate
+  };
+  const days = periodDays(plan.start, plan.end);
+
+  // One row per product at the selected warehouse level.
+  const rows = warehouseStock.map(item => {
+    const stock = hub === 'all' ? item.cbeSIH + item.mumbaiSIH : hubStock(item, hub);
+    const rate = hub === 'all' ? item.dailyRunRate : item.dailyRunRate * hubShare(hub, inputs.cbeShare);
+    const doc = daysOfCover(item, hub, inputs.cbeShare);
+    return { item, stock, rate, doc, health: healthOf(doc) };
+  });
+  const critical = rows.filter(r => r.health === 'critical');
+  const low = rows.filter(r => r.health === 'low');
+  const shown = rows.filter(r => {
+    if (filterStatus === 'critical') return r.health === 'critical';
+    if (filterStatus === 'warning') return r.health === 'low';
+    if (filterStatus === 'healthy') return r.health === 'optimal';
+    return true;
+  });
+  const names = (list: typeof rows) =>
+    list.length ? list.slice(0, 3).map(r => `${r.item.key} ${r.doc.toFixed(1)}d`).join(', ') : 'None right now';
+
+  const hero = rows.find(r => r.item.key === 'K100');
+  const fbaUnits = amazonInventoryPlan.reduce((s, p) => s + p.currentInventory, 0);
+  const fbaMonthly = amazonInventoryPlan.reduce((s, p) => s + p.avgMonthlySale, 0);
+
+  const generatedOn = istDate(now);
+  const shareIsEstimate = plan.cbeSharePct === derivedCbeSharePct;
+
+  const exportFactory = () =>
+    exportFactoryRequirement({
+      hub,
+      items: warehouseStock,
+      inputs,
+      stockAsOf: stockAsOfLabel,
+      cbeShareNote: shareIsEstimate
+        ? `${plan.cbeSharePct}%, estimated from the Shopify order mix by state. Only the top states are listed, so it is a floor.`
+        : `${plan.cbeSharePct}%, set by the user in the dashboard (the order-mix estimate was ${derivedCbeSharePct}%).`,
+      generatedOn
+    });
+
+  const exportMarketplace = () =>
+    exportMarketplacePlan({
+      plans: amazonInventoryPlan,
+      inputs: { start: plan.start, end: plan.end, buffer: inputs.buffer },
+      generatedOn
+    });
+
+  const heroSubtitle = !hero
+    ? ''
+    : hub === 'all'
+      ? `CBE: ${formatNumber(hero.item.cbeSIH)} | Mumbai: ${formatNumber(hero.item.mumbaiSIH)}`
+      : hub === 'cbe'
+        ? `D2C: ${formatNumber(hero.item.cbeD2CAvl)} | Bulk reserve: ${formatNumber(hero.item.cbeBulkReserve)}`
+        : 'Mumbai warehouse';
 
   return (
     <div className="space-y-6">
-      {/* Headline Inventory KPIs (Section) */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            Physical Warehouse & FBA Inventory
-          </span>
-          <SectionSourceBadge 
-            source="Nightly Warehouse Reports (Slack #inventory-wh-movement) + Amazon FBA Reports" 
-            syncCadence="Mon-Sat 23:00 IST"
-          />
+      {/* Warehouse level */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Warehouse</span>
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80" role="group" aria-label="Warehouse level">
+            {HUBS.map(h => (
+              <button
+                key={h}
+                type="button"
+                aria-pressed={h === hub}
+                onClick={() => setHub(h)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  h === hub ? 'bg-amber-600 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+              >
+                {HUB_LABEL[h]}
+              </button>
+            ))}
+          </div>
         </div>
+        <SectionSourceBadge
+          source="Nightly Warehouse Reports (Slack #inventory-wh-movement)"
+          syncCadence="Mon-Sat 23:00 IST"
+        />
+      </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            title="Critical Stockout Alerts"
-            value={`${criticalItems.length} Products`}
-            subtitle="Cover &lt; 7 days (immediate factory batch needed)"
-            badgeText="Urgent"
-            badgeVariant="danger"
-            footnote="Kumkumadi Night Serum (KNS): 6.3 days"
-          />
+      {/* Headline Inventory KPIs */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard
+          title="Critical Stockout Alerts"
+          value={`${critical.length} Products`}
+          subtitle="Cover < 7 days (immediate factory batch needed)"
+          badgeText="Urgent"
+          badgeVariant="danger"
+          footnote={names(critical)}
+        />
 
-          <MetricCard
-            title="Reorder Warning Queue"
-            value={`${warningItems.length} Products`}
-            subtitle="Cover between 7 and 14 days"
-            badgeText="7–14 Days"
-            badgeVariant="warning"
-            footnote="KNC Night Cream & KGEL Gel"
-          />
+        <MetricCard
+          title="Reorder Warning Queue"
+          value={`${low.length} Products`}
+          subtitle="Cover between 7 and 14 days"
+          badgeText="7–14 Days"
+          badgeVariant="warning"
+          footnote={names(low)}
+        />
 
-          <MetricCard
-            title="Hero Product Stock (K100)"
-            value="7,190 Units"
-            subtitle="CBE: 4,040 | Mumbai: 3,150"
-            badgeText="Hero Oil"
-            badgeVariant="success"
-            footnote="Days of cover: 43.5 days (Safe)"
-          />
+        <MetricCard
+          title="Hero Product Stock (K100)"
+          value={hero ? `${formatNumber(hero.stock)} Units` : '—'}
+          subtitle={heroSubtitle}
+          badgeText="Hero Oil"
+          badgeVariant={hero && hero.health === 'critical' ? 'danger' : hero && hero.health === 'low' ? 'warning' : 'success'}
+          footnote={hero ? `Days of cover: ${hero.doc.toFixed(1)} days at ${HUB_LABEL[hub]}` : undefined}
+        />
 
-          <MetricCard
-            title="Amazon FBA Reserve Units"
-            value="4,379 Units"
-            subtitle="Total available across FBA centers"
-            badgeText="Amazon FBA"
-            badgeVariant="primary"
-            footnote="Avg monthly Amazon run-rate: 3,905 units"
-          />
-        </div>
+        <MetricCard
+          title="Amazon FBA Units"
+          value={`${formatNumber(fbaUnits)} Units`}
+          subtitle={`Held at FBA across ${amazonInventoryPlan.length} ASINs`}
+          badgeText="Amazon FBA"
+          badgeVariant="primary"
+          footnote={`Average monthly Amazon sales: ${formatNumber(fbaMonthly)} units`}
+          sources={['inventoryPlan']}
+        />
       </div>
 
       {/* Operational Dispatch Rule Banner */}
@@ -102,45 +191,37 @@ export const InventoryOpsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Days of Cover & Reorder Table (Section) */}
+      {/* Days of Cover & Reorder Table */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h3 className="font-semibold text-slate-900 text-sm">Base Product Stock & Days of Cover (CBE + Mumbai)</h3>
-            <p className="text-xs text-slate-500">Nightly closing stock report parsed from #inventory-wh-movement.</p>
+            <h3 className="font-semibold text-slate-900 text-sm">Base Product Stock & Days of Cover: {HUB_LABEL[hub]}</h3>
+            <p className="text-xs text-slate-500">
+              {hub === 'all'
+                ? 'Nightly closing stock from #inventory-wh-movement, both warehouses together.'
+                : `Cover counts only the ${hub === 'cbe' ? Math.round(inputs.cbeShare * 100) : Math.round((1 - inputs.cbeShare) * 100)}% of sales that ship from ${HUB_LABEL[hub]}.`}
+            </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <SectionSourceBadge 
-              source="Coimbatore & Mumbai Warehouse Closing OCR Logs" 
-              syncCadence="Task #7 (23:00 IST)"
-            />
-            <div className="flex items-center gap-1.5 text-xs bg-slate-100 p-1 rounded-lg">
+          <div className="flex items-center gap-1.5 text-xs bg-slate-100 p-1 rounded-lg">
+            {(
+              [
+                ['all', `All (${rows.length})`, 'bg-white text-slate-900 shadow-2xs'],
+                ['critical', `Critical (${critical.length})`, 'bg-rose-500 text-white font-semibold'],
+                ['warning', `Warning (${low.length})`, 'bg-amber-500 text-white font-semibold'],
+                ['healthy', 'Healthy', 'bg-white text-slate-900 shadow-2xs']
+              ] as [StatusFilter, string, string][]
+            ).map(([key, label, on]) => (
               <button
-                onClick={() => setFilterStatus('all')}
-                className={`px-2.5 py-1 rounded-md font-medium transition-all ${filterStatus === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600'}`}
+                key={key}
+                type="button"
+                aria-pressed={filterStatus === key}
+                onClick={() => setFilterStatus(key)}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all ${filterStatus === key ? on : 'text-slate-600'}`}
               >
-                All ({warehouseStock.length})
+                {label}
               </button>
-              <button
-                onClick={() => setFilterStatus('critical')}
-                className={`px-2.5 py-1 rounded-md font-medium transition-all ${filterStatus === 'critical' ? 'bg-rose-500 text-white font-semibold' : 'text-slate-600'}`}
-              >
-                Critical ({criticalItems.length})
-              </button>
-              <button
-                onClick={() => setFilterStatus('warning')}
-                className={`px-2.5 py-1 rounded-md font-medium transition-all ${filterStatus === 'warning' ? 'bg-amber-500 text-white font-semibold' : 'text-slate-600'}`}
-              >
-                Warning ({warningItems.length})
-              </button>
-              <button
-                onClick={() => setFilterStatus('healthy')}
-                className={`px-2.5 py-1 rounded-md font-medium transition-all ${filterStatus === 'healthy' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600'}`}
-              >
-                Healthy
-              </button>
-            </div>
+            ))}
           </div>
         </div>
 
@@ -150,10 +231,22 @@ export const InventoryOpsView: React.FC = () => {
               <tr>
                 <th className="py-2.5 px-3">Base Key</th>
                 <th className="py-2.5 px-3">Product Name</th>
-                <th className="py-2.5 px-3 text-right">CBE D2C Avl</th>
-                <th className="py-2.5 px-3 text-right">CBE Bulk Reserve</th>
-                <th className="py-2.5 px-3 text-right">Mumbai Stock</th>
-                <th className="py-2.5 px-3 text-right">Total Units</th>
+                {hub === 'all' && (
+                  <>
+                    <th className="py-2.5 px-3 text-right">CBE D2C Avl</th>
+                    <th className="py-2.5 px-3 text-right">CBE Bulk Reserve</th>
+                    <th className="py-2.5 px-3 text-right">Mumbai Stock</th>
+                    <th className="py-2.5 px-3 text-right">Total Units</th>
+                  </>
+                )}
+                {hub === 'cbe' && (
+                  <>
+                    <th className="py-2.5 px-3 text-right">D2C Avl</th>
+                    <th className="py-2.5 px-3 text-right">Bulk Reserve</th>
+                    <th className="py-2.5 px-3 text-right">Stock in hand</th>
+                  </>
+                )}
+                {hub === 'mumbai' && <th className="py-2.5 px-3 text-right">Stock in hand</th>}
                 <th className="py-2.5 px-3 text-right">Daily Velocity</th>
                 <th className="py-2.5 px-3 text-right">Days of Cover</th>
                 <th className="py-2.5 px-3 text-right">Reorder Batch</th>
@@ -161,41 +254,48 @@ export const InventoryOpsView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-              {filteredStock.map((item, idx) => {
-                const targetDays = 45;
-                const reorderNeeded = item.daysOfCover < 14;
-                const suggestedBatch = Math.max(0, Math.round((item.dailyRunRate * targetDays) - item.totalStock));
-
+              {shown.map(({ item, stock, rate, doc, health }) => {
+                const suggestedBatch = Math.max(0, Math.round(rate * 45 - stock));
                 return (
-                  <tr key={idx} className={`hover:bg-slate-50 transition-colors ${item.daysOfCover < 7 ? 'bg-rose-50/40' : item.daysOfCover <= 14 ? 'bg-amber-50/20' : ''}`}>
+                  <tr key={item.key} className={`hover:bg-slate-50 transition-colors ${health === 'critical' ? 'bg-rose-50/40' : health === 'low' ? 'bg-amber-50/20' : ''}`}>
                     <td className="py-2.5 px-3 font-mono font-bold text-amber-900">{item.key}</td>
                     <td className="py-2.5 px-3 font-semibold text-slate-900">{item.name}</td>
-                    <td className="py-2.5 px-3 text-right font-mono">{formatNumber(item.cbeD2CAvl)}</td>
-                    <td className="py-2.5 px-3 text-right font-mono text-slate-500">{formatNumber(item.cbeBulkReserve)}</td>
-                    <td className="py-2.5 px-3 text-right font-mono">{formatNumber(item.mumbaiSIH)}</td>
-                    <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">{formatNumber(item.totalStock)}</td>
-                    <td className="py-2.5 px-3 text-right font-mono text-slate-600">{item.dailyRunRate} u/day</td>
+                    {hub === 'all' && (
+                      <>
+                        <td className="py-2.5 px-3 text-right font-mono">{formatNumber(item.cbeD2CAvl)}</td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-500">{formatNumber(item.cbeBulkReserve)}</td>
+                        <td className="py-2.5 px-3 text-right font-mono">{formatNumber(item.mumbaiSIH)}</td>
+                      </>
+                    )}
+                    {hub === 'cbe' && (
+                      <>
+                        <td className="py-2.5 px-3 text-right font-mono">{formatNumber(item.cbeD2CAvl)}</td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-500">{formatNumber(item.cbeBulkReserve)}</td>
+                      </>
+                    )}
+                    <td className={`py-2.5 px-3 text-right font-mono ${hub === 'all' ? 'font-bold text-slate-900' : ''}`}>{formatNumber(stock)}</td>
+                    <td className="py-2.5 px-3 text-right font-mono text-slate-600">{Number.isInteger(rate) ? rate : rate.toFixed(1)} u/day</td>
                     <td className="py-2.5 px-3 text-right font-mono font-bold">
-                      <span className={item.daysOfCover < 7 ? 'text-rose-700 font-extrabold' : item.daysOfCover <= 14 ? 'text-amber-700' : 'text-emerald-700'}>
-                        {item.daysOfCover}d
-                      </span>
+                      <span className={docClass(doc)}>{doc.toFixed(1)}d</span>
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono font-bold">
-                      {reorderNeeded ? (
-                        <span className="text-amber-800 bg-amber-100 px-2 py-0.5 rounded text-[11px]">
-                          +{formatNumber(suggestedBatch)} units
-                        </span>
+                      {doc < 14 ? (
+                        <span className="text-amber-800 bg-amber-100 px-2 py-0.5 rounded text-[11px]">+{formatNumber(suggestedBatch)} units</span>
                       ) : (
                         <span className="text-slate-400">—</span>
                       )}
                     </td>
                     <td className="py-2.5 px-3">
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                        item.daysOfCover < 7 ? 'bg-rose-100 text-rose-800 border-rose-300 font-bold' :
-                        item.daysOfCover <= 14 ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                        'bg-emerald-100 text-emerald-800 border-emerald-300'
-                      }`}>
-                        {item.daysOfCover < 7 ? 'Critical (<7d)' : item.daysOfCover <= 14 ? 'Low (7-14d)' : 'Optimal'}
+                      <span
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                          health === 'critical'
+                            ? 'bg-rose-100 text-rose-800 border-rose-300 font-bold'
+                            : health === 'low'
+                              ? 'bg-amber-100 text-amber-800 border-amber-300'
+                              : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        }`}
+                      >
+                        {health === 'critical' ? 'Critical (<7d)' : health === 'low' ? 'Low (7-14d)' : 'Optimal'}
                       </span>
                     </td>
                   </tr>
@@ -204,57 +304,25 @@ export const InventoryOpsView: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <p className="text-[11px] text-slate-500">Reorder batch tops stock up to 45 days of sales at {HUB_LABEL[hub]}.</p>
       </div>
 
-      {/* Amazon Inventory Plan Section */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div>
-            <h3 className="font-semibold text-slate-900 text-sm">Amazon Inbound & Inventory Restock Plan (FBA)</h3>
-            <p className="text-xs text-slate-500">Cross-channel restock recommendations extracted from operational planning.</p>
-          </div>
-          <SectionSourceBadge 
-            source="Amazon FBA Inventory Planning (Windsor SP-API amz_inventory)" 
-          />
-        </div>
+      {/* Factory planning */}
+      <PlanningControls
+        plan={plan}
+        days={days}
+        derivedCbeSharePct={derivedCbeSharePct}
+        onChange={patch => setPlan(p => ({ ...p, ...patch }))}
+      />
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-y border-slate-200">
-              <tr>
-                <th className="py-2.5 px-3">ASIN</th>
-                <th className="py-2.5 px-3">Product Name</th>
-                <th className="py-2.5 px-3 text-right">Current FBA Stock</th>
-                <th className="py-2.5 px-3 text-right">Inbound Pipeline</th>
-                <th className="py-2.5 px-3 text-right">Avg Monthly Sale</th>
-                <th className="py-2.5 px-3 text-right">FBA Days of Cover</th>
-                <th className="py-2.5 px-3 text-right">Inbound Needed</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-              {amazonInventoryPlan.map((p, idx) => (
-                <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-2.5 px-3 font-mono font-bold text-amber-900">{p.asin}</td>
-                  <td className="py-2.5 px-3 font-semibold text-slate-900">{p.product}</td>
-                  <td className="py-2.5 px-3 text-right font-mono">{formatNumber(p.currentInventory)}</td>
-                  <td className="py-2.5 px-3 text-right font-mono text-emerald-700 font-bold">+{formatNumber(p.inbound)}</td>
-                  <td className="py-2.5 px-3 text-right font-mono text-slate-600">{formatNumber(p.avgMonthlySale)}</td>
-                  <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">{p.daysOfCover}d</td>
-                  <td className="py-2.5 px-3 text-right font-mono">
-                    {p.neededToSend > 0 ? (
-                      <span className="text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded">
-                        Send {formatNumber(p.neededToSend)} u
-                      </span>
-                    ) : (
-                      <span className="text-emerald-700">Stocked</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <FactoryRequirement hub={hub} items={warehouseStock} inputs={inputs} days={days} stockAsOf={stockAsOfLabel} onExport={exportFactory} />
+
+      <MarketplaceInventory
+        plans={amazonInventoryPlan}
+        inputs={{ start: plan.start, end: plan.end, buffer: inputs.buffer }}
+        days={days}
+        onExport={exportMarketplace}
+      />
     </div>
   );
 };

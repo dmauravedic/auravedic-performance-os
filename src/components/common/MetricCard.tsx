@@ -1,5 +1,8 @@
 import React from 'react';
 import { ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
+import { useDashboard } from '../../context/DashboardContext';
+import { defaultCardSources, type LatencySourceKey } from '../../data/channelLatency';
+import { FreshnessLine } from './FreshnessChip';
 
 interface MetricCardProps {
   title: string;
@@ -13,6 +16,8 @@ interface MetricCardProps {
   badgeVariant?: 'primary' | 'success' | 'warning' | 'danger' | 'neutral' | 'saffron';
   icon?: React.ReactNode;
   footnote?: string;
+  /** Sources behind the figure, for the last-updated line. Defaults to the page's and channel's; false hides it. */
+  sources?: LatencySourceKey[] | false;
   className?: string;
 }
 
@@ -28,8 +33,12 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   badgeVariant = 'neutral',
   icon,
   footnote,
+  sources,
   className = ''
 }) => {
+  const { currentView, channel } = useDashboard();
+  const freshnessSources = sources === false ? [] : sources ?? defaultCardSources(currentView, channel);
+
   return (
     <div className={`bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden ${className}`}>
       <div className="flex items-center justify-between gap-2 mb-2">
@@ -90,6 +99,8 @@ export const MetricCard: React.FC<MetricCardProps> = ({
           {footnote}
         </div>
       )}
+
+      {freshnessSources.length > 0 && <FreshnessLine sources={freshnessSources} className="mt-2.5" />}
     </div>
   );
 };

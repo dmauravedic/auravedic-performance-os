@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useDashboard } from '../../context/DashboardContext';
 import { SectionSourceBadge } from '../common/SectionSourceBadge';
+import { SourcesTable } from '../common/SourcesTable';
 import { parseUploadedFile } from '../../utils/fileParsers';
 import {
   Database,
@@ -28,7 +29,8 @@ export const DataHealthIngestionView: React.FC = () => {
   const [uploadedRecordsCount, setUploadedRecordsCount] = useState<number>(0);
 
   const reportsNeeded = [
-    { report: 'Amazon Ads Campaign Report', status: 'Missing in Windsor', fix: 'Connect amazon_ads profile 1844743165607135 in Windsor' },
+    { report: 'Amazon Ads Campaign Report (daily)', status: 'Monthly only, from the report sheet', fix: 'Connect amazon_ads profile 1844743165607135 in Windsor for daily spend' },
+    { report: 'Stock reports for Flipkart, Nykaa, Myntra', status: 'No source', fix: 'Add a stock tab to the report sheet, or post the FBF counts so they can be loaded' },
     { report: 'Amazon Settlement (Full History)', status: 'Partial (13-25 Oct only)', fix: 'Download date range payment reports from Seller Central' },
     { report: 'Product Cost per SKU', status: 'Assumed (Flat ₹125 default)', fix: 'Upload landed unit cost spreadsheet from finance' },
     { report: 'Shopify Payment Gateway & COD Fees', status: 'Missing', fix: 'Shopify Payments payout or COD courier remittance file' },
@@ -61,6 +63,18 @@ export const DataHealthIngestionView: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Where every number comes from */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
+        <div className="pb-3 border-b border-slate-100">
+          <h3 className="font-semibold text-slate-900 text-sm">Where the data comes from</h3>
+          <p className="text-xs text-slate-500">
+            Every source behind the dashboard, how it arrives, how often, and whether it is current. A source that runs behind by design
+            (Flipkart's day, Amazon's lag) is noted, not flagged; one past its accepted delay is marked stale.
+          </p>
+        </div>
+        <SourcesTable />
+      </div>
+
       {/* Interactive In-App File Ingestion (Drag & Drop Uploader) */}
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-2xs space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">

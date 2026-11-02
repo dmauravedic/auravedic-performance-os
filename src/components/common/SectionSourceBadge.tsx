@@ -1,7 +1,8 @@
 import React from 'react';
 import { Database, Clock } from 'lucide-react';
 import type { ChannelFilter } from '../../context/DashboardContext';
-import { resolveLatency } from '../../data/channelLatency';
+import { resolveLatency, resolveSourceKeys, type LatencySourceKey } from '../../data/channelLatency';
+import { FreshnessBadges } from './FreshnessChip';
 
 interface SectionSourceBadgeProps {
   source: string;
@@ -13,6 +14,8 @@ interface SectionSourceBadgeProps {
   channel?: ChannelFilter;
   /** Hide the latency chip (e.g. when the section shows latency per row instead). */
   showLatency?: boolean;
+  /** Sources whose last-updated time is shown. Defaults to the channel's, or those the source text names. */
+  sources?: LatencySourceKey[];
   className?: string;
 }
 
@@ -23,6 +26,7 @@ export const SectionSourceBadge: React.FC<SectionSourceBadgeProps> = ({
   latency,
   channel,
   showLatency = true,
+  sources,
   className = ''
 }) => {
   const latencyGroups = !showLatency
@@ -30,6 +34,7 @@ export const SectionSourceBadge: React.FC<SectionSourceBadgeProps> = ({
     : latency
       ? [{ labels: [] as string[], latency }]
       : resolveLatency({ channel, text: `${source} ${pipeline || ''}` });
+  const freshnessKeys = sources ?? (showLatency ? resolveSourceKeys({ channel, text: `${source} ${pipeline || ''}` }) : []);
 
   return (
     <div className={`inline-flex flex-wrap items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200/90 text-[11px] text-slate-600 font-sans shadow-2xs ${className}`}>
@@ -66,6 +71,12 @@ export const SectionSourceBadge: React.FC<SectionSourceBadgeProps> = ({
               </span>
             ))}
           </span>
+        </>
+      )}
+      {freshnessKeys.length > 0 && (
+        <>
+          <span className="text-slate-300">•</span>
+          <FreshnessBadges sources={freshnessKeys} />
         </>
       )}
     </div>

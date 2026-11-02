@@ -123,6 +123,21 @@ export interface MarketplaceItem {
   periodLabel?: string;
 }
 
+/** One month of a marketplace's own ad report (Shan's report sheet). */
+export interface MarketplaceAdsItem {
+  channel: string;
+  month: string; // "Sep 2026"
+  monthKey: string; // "2026-09"
+  adSpend: number;
+  adRevenue?: number;
+  adRoas?: number;
+  adOrders?: number;
+  totalOrders?: number;
+  totalRevenue?: number;
+  /** Ad spend as a % of the channel's total revenue. */
+  tacos?: number;
+}
+
 export interface FreshnessInfo {
   metaAds: string;
   googleAds: string;
@@ -150,6 +165,7 @@ export interface DashboardDataBundle {
   warehouseStock: WarehouseItem[];
   stateCodRisk: StateCodRiskItem[];
   marketplaceSummary: MarketplaceItem[];
+  marketplaceAds?: MarketplaceAdsItem[];
   freshness: FreshnessInfo;
 }
 

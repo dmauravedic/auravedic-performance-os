@@ -3,6 +3,7 @@ import { useDashboard } from '../../context/DashboardContext';
 import { MetricCard } from '../common/MetricCard';
 import { ViewFilterBar } from '../common/ViewFilterBar';
 import { SectionSourceBadge } from '../common/SectionSourceBadge';
+import { FeedBadge } from '../common/FeedBadge';
 import { formatINR, formatPercent, formatNumber } from '../../utils/formatters';
 import {
   Store,
@@ -92,12 +93,19 @@ export const MarketplacesView: React.FC = () => {
         }
       />
 
+      {/* How the selected marketplace's data is produced */}
+      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+        <span className="font-semibold text-slate-700">Data feed:</span>
+        <FeedBadge channel={activeMktTab} showDetail />
+      </div>
+
       {/* Amazon View Content */}
       {activeMktTab === 'amazon' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricCard
               title="Amazon Ordered Sales"
+              sources={['amazonSales']}
               value="₹29.8L"
               priorValue="₹23.4L"
               deltaText="+27.4% vs Sep 1-25"
@@ -109,6 +117,7 @@ export const MarketplacesView: React.FC = () => {
 
             <MetricCard
               title="Settlement Net Payout"
+              sources={['amazonSettlement']}
               value="₹4.81L"
               subtitle="13–25 Oct settlement period"
               badgeText="13 Days"
@@ -118,6 +127,7 @@ export const MarketplacesView: React.FC = () => {
 
             <MetricCard
               title="Amazon Fees & FBA Share"
+              sources={['amazonSettlement']}
               value="27.2%"
               subtitle="₹3.39L total fees on ₹12.45L principal"
               badgeText="Commission + FBA"
@@ -126,6 +136,7 @@ export const MarketplacesView: React.FC = () => {
 
             <MetricCard
               title="Amazon Ads Deduction"
+              sources={['amazonSettlement']}
               value="₹3.45L"
               subtitle="27.7% of principal (~₹27k/day)"
               badgeText="Billed Ads"
@@ -215,6 +226,7 @@ export const MarketplacesView: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricCard
               title="Flipkart Est. Order Value"
+              sources={['flipkart']}
               value="₹14.5L"
               subtitle="1–29 Oct | 3,356 units ordered"
               badgeText="Estimate"
@@ -224,6 +236,7 @@ export const MarketplacesView: React.FC = () => {
 
             <MetricCard
               title="Delivered Lines"
+              sources={['flipkart']}
               value="1,726"
               subtitle="51.4% delivered | Many open lines"
               badgeText="Fulfillment"
@@ -232,6 +245,7 @@ export const MarketplacesView: React.FC = () => {
 
             <MetricCard
               title="Returns & Cancellations"
+              sources={['flipkart']}
               value="814 Lines"
               subtitle="453 returned (13.5%) + 361 cancelled"
               badgeText="Return Risk"
@@ -240,6 +254,7 @@ export const MarketplacesView: React.FC = () => {
 
             <MetricCard
               title="Flipkart Ads Spend & ROI"
+              sources={['flipkart']}
               value="₹2.51L"
               subtitle="Ad sales ₹8.84L | 3.52x reported ROI"
               badgeText="Flipkart Ads"

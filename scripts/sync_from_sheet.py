@@ -29,6 +29,8 @@ other tabs too, so only named tabs and fixed ranges are read, never whole tabs:
   Amz-Inventory Plan  A1:I12   -> amazonInventoryPlan
   Nykaa Ads           A1:L200  -> Nykaa row of marketplaceSummary  (latest month with orders)
   Myntra Ads          A1:I200  -> Myntra row of marketplaceSummary (latest month with orders)
+  Amazon Ads, FKT, Nykaa Ads, Myntra Ads, Purplle Ads, Snapdeal Ads
+                               -> marketplaceAds, 24 months each (see scripts/marketplace_ads.py)
 
 Usage
   python scripts/sync_from_sheet.py                         # Google Sheet(s) from the environment
@@ -56,6 +58,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from data_io import DAILY_FIELDS, SyncError, parse_number, read_daily_ts, write_daily_ts  # noqa: E402
 from windsor_daily import WINDSOR_TABS, merge_into_daily, parse_windsor  # noqa: E402
+from marketplace_ads import ADS_RANGES, build_marketplace_ads  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT, "src", "data")
@@ -311,6 +314,10 @@ SHAN_RANGES = {
     "Nykaa Ads": "A1:L200",
     "Myntra Ads": "A1:I200",
 }
+# The monthly ad reports (Amazon Ads, FKT, Purplle, Snapdeal, and again Nykaa / Myntra) use their own
+# bounded ranges; see marketplace_ads.py. Nykaa Ads and Myntra Ads keep the wider range above.
+for _tab, _rng in ADS_RANGES.items():
+    SHAN_RANGES.setdefault(_tab, _rng)
 
 
 def norm(cell):
@@ -467,6 +474,11 @@ def apply_shan(data, tables):
         row.update(fields)
         changed = True
         notes.append(f"{tab}: {fields['periodLabel']} -> {channel} ({fields['orders']} orders)")
+    ads, ads_notes = build_marketplace_ads(tables)
+    if ads:
+        data["marketplaceAds"] = ads
+        notes.extend(ads_notes)
+
     if changed:
         # Shares of the listed channels, so they add to 100% (the old figures summed to 118%)
         total = sum(r["monthlyRevenue"] for r in data["marketplaceSummary"])
