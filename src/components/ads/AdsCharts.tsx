@@ -48,7 +48,7 @@ export const DailySpendChart: React.FC<{ slice: DailyRecord[]; periodLabel: stri
   return (
     <ChartCard
       title={`Daily spend by platform — ${periodLabel}`}
-      subtitle="Rupees per day. Amazon is settlement-billed (pre-13 Oct estimated); Flipkart is a period average."
+      subtitle="Rupees per day. Amazon is the Amazon Ads export where loaded, otherwise settlement billing (pre-13 Oct estimated); Flipkart is a period average."
       table={{
         columns: ['Date', 'Meta', 'Amazon Ads', 'Google Ads', 'Flipkart Ads', 'Total'],
         rows: data.map(d => [

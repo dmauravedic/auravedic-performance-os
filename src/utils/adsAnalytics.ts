@@ -73,7 +73,8 @@ export interface PlatformRow {
   basisTone: 'attributed' | 'estimate';
 }
 
-export function platformRows(slice: DailyRecord[]): PlatformRow[] {
+/** `amazonAdsLoaded`: the daily Amazon Ads export has loaded, so Amazon spend is Amazon's own figure. */
+export function platformRows(slice: DailyRecord[], amazonAdsLoaded = false): PlatformRow[] {
   const metaSpend = sum(slice.map(r => r.metaSpend));
   const googleSpend = sum(slice.map(r => r.googleSpend));
   const amazonAds = sum(slice.map(r => r.amazonBilledAds));
@@ -103,7 +104,9 @@ export function platformRows(slice: DailyRecord[]): PlatformRow[] {
       efficiencyLabel: 'Sales per ₹1 of ads',
       costPerResult: div(amazonAds, sum(slice.map(r => r.amazonOrders))),
       costLabel: 'per order (all orders)',
-      basis: 'Total Amazon sales ÷ billed ads (settlement; pre-13 Oct estimated)',
+      basis: amazonAdsLoaded
+        ? 'Total Amazon sales ÷ Amazon Ads spend'
+        : 'Total Amazon sales ÷ billed ads (settlement; pre-13 Oct estimated)',
       basisTone: 'estimate'
     },
     {
@@ -629,7 +632,7 @@ export function buildInsights(input: {
         id: 'tacos',
         tone: last.tacos > first.tacos + 3 ? 'risk' : 'info',
         title: 'Amazon ad load is rising',
-        body: `Amazon ads (settlement-billed) went from ${first.tacos.toFixed(1)}% of Amazon sales in ${first.month} to ${last.tacos.toFixed(1)}% in ${last.month}, while Amazon sales moved ${pct((last.amazonSales / first.amazonSales - 1) * 100)} and ad spend ${pct((last.amazonAds / first.amazonAds - 1) * 100)}.`,
+        body: `Amazon ads (monthly roll-up) went from ${first.tacos.toFixed(1)}% of Amazon sales in ${first.month} to ${last.tacos.toFixed(1)}% in ${last.month}, while Amazon sales moved ${pct((last.amazonSales / first.amazonSales - 1) * 100)} and ad spend ${pct((last.amazonAds / first.amazonAds - 1) * 100)}.`,
         stat: `${last.tacos.toFixed(1)}%`,
         statLabel: `TACOS, from ${first.tacos.toFixed(1)}%`,
         tag: 'Estimate'
@@ -649,7 +652,7 @@ export function buildInsights(input: {
           id: 'amazon-ads-gap',
           tone: 'risk',
           title: "Amazon's two ad figures disagree",
-          body: `Amazon's ad report shows ${formatINR(compared.adSpend, true)} of ad spend for ${compared.month} (${(compared.tacos as number).toFixed(1)}% of Amazon sales). The settlement-based estimate behind combined ad spend, MER and the P&L is ${formatINR(est.amazonAds, true)}, ${Math.abs(gap * 100).toFixed(0)}% ${gap > 0 ? 'higher' : 'lower'}. Check which one Amazon actually billed.`,
+          body: `Amazon's ad report shows ${formatINR(compared.adSpend, true)} of ad spend for ${compared.month} (${(compared.tacos as number).toFixed(1)}% of Amazon sales). The settlement-based estimate in the monthly roll-up (used for combined ad spend and MER) is ${formatINR(est.amazonAds, true)}, ${Math.abs(gap * 100).toFixed(0)}% ${gap > 0 ? 'higher' : 'lower'}. Check which one Amazon actually billed.`,
           stat: pct(gap * 100),
           statLabel: 'estimate vs ad report',
           tag: 'Needs check'

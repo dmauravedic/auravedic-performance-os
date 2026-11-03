@@ -4,7 +4,7 @@ import { useDashboard } from '../../context/DashboardContext';
 import type { LatencySourceKey } from '../../data/channelLatency';
 import { formatAge, formatAsOf, groupFreshness, useSourceFreshness } from '../../utils/freshness';
 
-const CORE: LatencySourceKey[] = ['shopify', 'meta', 'google', 'amazonSales', 'amazonSettlement', 'flipkart', 'warehouse'];
+const CORE: LatencySourceKey[] = ['shopify', 'meta', 'google', 'amazonSales', 'amazonSettlement', 'amazonAds', 'flipkart', 'warehouse'];
 
 /**
  * Appears only when a source is past its accepted delay. A source that is behind by design

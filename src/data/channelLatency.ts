@@ -13,6 +13,7 @@ export type LatencySourceKey =
   | 'amazonSales'
   | 'amazonSettlement'
   | 'amazonAds'
+  | 'amazonAdsReport'
   | 'flipkart'
   | 'flipkartAds'
   | 'nykaa'
@@ -35,8 +36,9 @@ export interface LatencySource {
   match: RegExp;
 }
 
-// Task #9 pulls "yesterday" from Windsor (Meta, Google) and Shopify at 04:51 IST. This is the
-// source's schedule: the dashboard itself shows a fixed snapshot until the sheet sync is on.
+// Task #9 pulls "yesterday" from Windsor (Meta, Amazon) and Shopify at 04:51 IST, and the Google Ads
+// sheet is refreshed in the same window. This is the source's schedule: the dashboard itself shows a
+// fixed snapshot until the sheet sync is on.
 const DAILY_PULL = 'T-1 (source loads ~04:51 IST)';
 
 // Declaration order is the display order.
@@ -50,11 +52,16 @@ export const LATENCY_SOURCES: Record<LatencySourceKey, LatencySource> = {
     match: /sp-api|seller central|amazon fba|business report|sales & traffic|amazon ordered/
   },
   amazonSettlement: {
-    label: 'Amazon settlement & ads',
+    label: 'Amazon settlement',
     latency: '1–2d behind · pre-13 Oct estimated',
-    match: /settlement|billed ads|amazon ads/
+    match: /settlement/
   },
-  amazonAds: { label: 'Amazon Ads report', latency: 'Monthly · entered by hand', match: NEVER_BY_TEXT },
+  amazonAds: {
+    label: 'Amazon Ads',
+    latency: '1–2d behind (Amazon report lag)',
+    match: /billed ads|amazon ads|amazon ad spend/
+  },
+  amazonAdsReport: { label: 'Amazon Ads monthly report', latency: 'Monthly · entered by hand', match: NEVER_BY_TEXT },
   flipkart: {
     label: 'Flipkart',
     latency: 'Orders daily (09:40 IST) · ads & stock weekly',
@@ -89,10 +96,11 @@ export type SourceRoute = 'automated' | 'mixed' | 'manual' | 'static';
 export const SOURCE_ORIGIN: Record<LatencySourceKey, { from: string; route: SourceRoute }> = {
   shopify: { from: 'Shopify store', route: 'automated' },
   meta: { from: 'Meta Ads (Windsor)', route: 'automated' },
-  google: { from: 'Google Ads (Windsor)', route: 'automated' },
+  google: { from: 'Google Ads (daily sheet)', route: 'automated' },
   amazonSales: { from: 'Amazon sales (Windsor)', route: 'automated' },
   amazonSettlement: { from: 'Amazon settlement (Windsor)', route: 'automated' },
-  amazonAds: { from: "Amazon Ads report (Shan's sheet)", route: 'manual' },
+  amazonAds: { from: 'Amazon Ads (Windsor)', route: 'automated' },
+  amazonAdsReport: { from: "Amazon Ads monthly report (Shan's sheet)", route: 'manual' },
   flipkart: { from: 'Flipkart reports (Slack)', route: 'manual' },
   flipkartAds: { from: "Flipkart ads (Shan's sheet)", route: 'manual' },
   nykaa: { from: "Nykaa report (Shan's sheet)", route: 'manual' },
@@ -118,9 +126,9 @@ export const ROUTE_WORD: Record<SourceRoute, string> = {
  * the combined totals contain (Flipkart is shown separately, never summed in).
  */
 export const CHANNEL_LATENCY_SOURCES: Record<ChannelFilter, LatencySourceKey[]> = {
-  all: ['shopify', 'meta', 'google', 'amazonSales', 'amazonSettlement'],
+  all: ['shopify', 'meta', 'google', 'amazonSales', 'amazonSettlement', 'amazonAds'],
   shopify: ['shopify', 'meta', 'google'],
-  amazon: ['amazonSales', 'amazonSettlement'],
+  amazon: ['amazonSales', 'amazonSettlement', 'amazonAds'],
   flipkart: ['flipkart'],
   nykaa: ['nykaa'],
   myntra: ['myntra']
@@ -142,13 +150,14 @@ export const CHANNEL_FEED: Partial<Record<ChannelFilter, ChannelFeed>> = {
   shopify: {
     mode: 'automated',
     label: 'Automated',
-    detail: 'A scheduled daily pull from the Shopify connector (task #9, about 04:51 IST). Meta and Google spend arrive through Windsor.'
+    detail:
+      "A scheduled daily pull from the Shopify connector (task #9, about 04:51 IST). Meta spend arrives through Windsor; Google spend is read from the daily Google Ads sheet."
   },
   amazon: {
     mode: 'mixed',
     label: 'API + manual',
     detail:
-      'Sales and settlement come from the Windsor API. Amazon Ads is not connected, so ads are taken from settlement billing. The ASIN business report and the inventory plan are uploaded by hand.'
+      'Sales, settlement and daily ad spend come from the Windsor API. Until the Amazon Ads export has loaded, ads are taken from settlement billing. The ASIN business report and the inventory plan are uploaded by hand.'
   },
   flipkart: {
     mode: 'manual',
@@ -228,7 +237,13 @@ export const FRESHNESS_RULES: Partial<Record<LatencySourceKey, FreshnessRule>> =
     lagShort: 'No Sunday run (expected)',
     staleAfterHours: 60
   },
-  amazonAds: MONTHLY_REPORT,
+  amazonAds: {
+    expectedLagHours: 30,
+    lagNote: 'Amazon Ads reports about a day behind, and two days behind is normal.',
+    lagShort: 'Amazon Ads runs 1–2 days behind (expected)',
+    staleAfterHours: 72
+  },
+  amazonAdsReport: MONTHLY_REPORT,
   flipkartAds: MONTHLY_REPORT,
   nykaa: MONTHLY_REPORT,
   myntra: MONTHLY_REPORT,

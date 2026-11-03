@@ -19,6 +19,7 @@ import {
 
 export const DataHealthIngestionView: React.FC = () => {
   const {
+    data,
     updateAmazonData,
     resetToDefaults,
     defaultCOGS,
@@ -30,8 +31,13 @@ export const DataHealthIngestionView: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [uploadedRecordsCount, setUploadedRecordsCount] = useState<number>(0);
 
+  // Listed only while the daily Amazon Ads export has not loaded; the sync stamps freshness.amazonAds when it does
+  const amazonAdsMissing = data.freshness.amazonAds
+    ? []
+    : [{ report: 'Amazon Ads daily spend', status: 'Not loaded: ad spend is settlement billing, estimated before 13 Oct', fix: 'Point the Windsor amazon_ads export at the amz_ads_daily tab of the feed workbook' }];
+
   const reportsNeeded = [
-    { report: 'Amazon Ads Campaign Report (daily)', status: 'Monthly only, from the report sheet', fix: 'Connect amazon_ads profile 1844743165607135 in Windsor for daily spend' },
+    ...amazonAdsMissing,
     { report: 'Stock reports for Flipkart, Nykaa, Myntra', status: 'No source', fix: 'Add a stock tab to the report sheet, or post the FBF counts so they can be loaded' },
     { report: 'Amazon Settlement (Full History)', status: 'Partial (13-25 Oct only)', fix: 'Download date range payment reports from Seller Central' },
     { report: 'Product Cost per SKU', status: 'Assumed (Flat ₹125 default)', fix: 'Upload landed unit cost spreadsheet from finance' },

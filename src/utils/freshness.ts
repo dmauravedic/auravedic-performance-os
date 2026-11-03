@@ -69,7 +69,10 @@ export function asOfFor(key: LatencySourceKey, data: DashboardDataBundle): Date 
       return parseAsOf(f.flipkartOrders);
     case 'warehouse':
       return parseAsOf(f.warehouseStock);
-    case 'amazonAds': {
+    case 'amazonAds':
+      // Until the Amazon Ads export loads, ad spend is the settlement figure and is as old as it
+      return parseAsOf(f.amazonAds ?? f.amazonSettlement);
+    case 'amazonAdsReport': {
       const k = latestMonthKey(data, 'Amazon.in');
       return k ? monthEnd(k) : null;
     }

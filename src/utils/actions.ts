@@ -133,6 +133,7 @@ const SOURCES_TO_CHECK: LatencySourceKey[] = [
   'google',
   'amazonSales',
   'amazonSettlement',
+  'amazonAds',
   'flipkart',
   'warehouse'
 ];

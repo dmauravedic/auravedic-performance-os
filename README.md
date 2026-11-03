@@ -111,7 +111,7 @@ The period buttons follow the newest date in `daily` (`src/utils/periods.ts`): Y
 **One-time setup**
 1. In Google Cloud, create a project, enable the Google Sheets API, and create a service account. Download its JSON key.
 2. Share the sheet with the service account's email address, as a Viewer.
-3. In the GitHub repo, go to Settings > Secrets and variables > Actions > Secrets. Add `GOOGLE_SERVICE_ACCOUNT_JSON` (the whole key file) and `GOOGLE_SHEET_ID` (the long id in the sheet's URL). Use secrets, not variables: a variable's value is printed in the workflow log, which is public for a public repository.
+3. In the GitHub repo, go to Settings > Secrets and variables > Actions > Secrets. Add `GOOGLE_SERVICE_ACCOUNT_JSON` (the whole key file) and `GOOGLE_SHEET_ID` (the long id in the sheet's URL), plus `SHAN_SHEET_ID` and `GOOGLE_ADS_SHEET_ID` if you use them (below). Use secrets, not variables: a variable's value is printed in the workflow log, which is public for a public repository.
 4. Run the workflow once from the Actions tab to check it.
 
 If the sheet has bad data (a non-number in a number column, a missing column, a duplicate date), the sync fails with the tab, row and column, and the deploy stops, so the last good site stays up.
@@ -131,15 +131,19 @@ If the sheet has bad data (a non-number in a number column, a missing column, a 
 | Tab | Windsor connector | Overwrites |
 |---|---|---|
 | `meta_daily` | `facebook` | Meta spend, purchases, purchase value. The excluded account and rows over ₹50,000 per purchase are dropped. |
-| `google_daily` | `google_ads` | Google spend, conversions, conversion value |
-| `amz_sales_date` | `amazon_sp` (Sales and Traffic by date) | Amazon sales and order items. Refunds, fees and billed ads follow sales until a settlement export is added. |
+| `amz_sales_date` | `amazon_sp` (Sales and Traffic by date) | Amazon sales and order items. Refunds and fees follow sales until a settlement export is added. |
+| `amz_ads_daily` | `amazon_ads` | Amazon ad spend, per day. It **replaces** the settlement and flat-rate estimate in the P&L and on the ad pages for every day it covers. Total ad spend and MER keep meaning Meta + Google. |
 | `shop_daily` | `shopify` | Shopify gross sales, discounts, returns, orders |
 
-Column names are matched loosely (case, spaces and underscores are ignored), a missing required column stops the run and lists what was found, and repeated rows from an appending export are ignored. A source with no rows leaves the built-in figures alone. **Only days already in the dashboard (27 Aug to 25 Oct) are overwritten for now**: days after that are reported in the run log and not added, because the app's period logic (MTD, last 7 days, prior periods) is still tied to the bundled 60-day window.
+**Google Ads is not a Windsor tab.** It is read from the `_GoogleAds_Daily` tab of a separate sheet (the copy of Shan's report sheet that holds it). Set the secret `GOOGLE_ADS_SHEET_ID` to that sheet's id and share it with the service account as a Viewer. If the secret is not set, the same tab is looked for in `SHAN_SHEET_ID` and skipped quietly when it is not there. Only that one tab is read, in one range (`A1:Z6000`); the sheet's other tabs, which include sensitive ones, are never opened. The tab needs a date column (`Date` / `Day`), a cost column (`Cost`, `Spend` or `cost_micros`), `Conversions` and a conversion-value column (`Conversions value`, `Conv. value`, `All conv. value`), one row per campaign per day or one row per day. A title or note above the header row is fine.
+
+Column names are matched loosely (case, spaces and underscores are ignored), a missing required column stops the run and lists what was found, and repeated rows from an appending export are ignored. A source with no rows leaves the built-in figures alone. **Only days already in the dashboard (27 Aug to 25 Oct) are overwritten for now**: days after that are reported in the run log and not added, because a new day also needs Flipkart, Nykaa and Myntra sales and Amazon settlement, which none of these exports carry.
+
+**The freshness strip follows the data.** For each source an export fed (Meta, Google, Amazon sales, Amazon Ads, Shopify), the sync writes the newest day it covers in the daily series as that source's last-updated time, over any date typed in the workbook's `freshness` tab. Settlement, Flipkart and the warehouse keep the tab's value.
 
 The month each channel's figures cover is shown next to them. Channel shares are recomputed across the listed channels so they add to 100%. Keep the `Sheet31` table within rows 1 to 11 and put nothing sensitive in these tabs or ranges. **Do not keep passwords or payment-portal logins in any sheet that is shared with the service account or with a link.**
 
-**Is the data current?** Every card and section shows when its data was last updated and checks that against how late the source is allowed to be. Every card also has a **Data from** line naming where its figures come from, split into *Automatic* (Shopify, and Windsor for Meta, Google and Amazon) and *Manual* (Flipkart reports posted in Slack, the warehouse stock report, and the tabs of Shan's sheet). Section badges carry the same word. The Data Health page lists every source, where it comes from and whether it is current. A source can be in one of three states:
+**Is the data current?** Every card and section shows when its data was last updated and checks that against how late the source is allowed to be. Every card also has a **Data from** line naming where its figures come from, split into *Automatic* (Shopify, Windsor for Meta, Amazon sales and Amazon Ads, and the daily Google Ads sheet) and *Manual* (Flipkart reports posted in Slack, the warehouse stock report, and the tabs of Shan's sheet). Section badges carry the same word. The Data Health page lists every source, where it comes from and whether it is current. A source can be in one of three states:
 
 | State | Meaning | Examples |
 |---|---|---|

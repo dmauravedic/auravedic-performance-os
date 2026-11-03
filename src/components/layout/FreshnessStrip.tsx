@@ -10,6 +10,7 @@ const ITEMS: { name: string; key: LatencySourceKey }[] = [
   { name: 'Shopify Store', key: 'shopify' },
   { name: 'Amazon SP-API', key: 'amazonSales' },
   { name: 'Amazon Settle', key: 'amazonSettlement' },
+  { name: 'Amazon Ads', key: 'amazonAds' },
   { name: 'Flipkart Hub', key: 'flipkart' },
   { name: 'Warehouse Desk', key: 'warehouse' }
 ];

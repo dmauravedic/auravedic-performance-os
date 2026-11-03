@@ -524,6 +524,8 @@ export interface FreshnessInfo {{
   shopifySales: string;
   amazonSales: string;
   amazonSettlement: string;
+  /** Set by the sync once the Amazon Ads export has loaded; until then ad spend is the settlement figure. */
+  amazonAds?: string;
   flipkartOrders: string;
   warehouseStock: string;
   assumptions: {{

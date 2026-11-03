@@ -161,7 +161,7 @@ export const ProfitLossView: React.FC = () => {
   const methodBSource = {
     all: 'Shopify Net + Amazon Settlement v2 Flat File minus COGS, Shipping & Ad deductions',
     shopify: 'Shopify Net minus COGS, Shipping & Windsor Meta & Google Ad Spend',
-    amazon: 'Amazon Settlement v2 Flat File minus Fees, Billed Ads & COGS'
+    amazon: 'Amazon Settlement v2 Flat File minus Fees, Ad Spend & COGS'
   }[pnlChannel];
 
   const overheadLabel =
@@ -221,7 +221,7 @@ export const ProfitLossView: React.FC = () => {
               </div>
               {showAmazon && (
                 <div className="flex justify-between pt-1.5 text-slate-500 italic">
-                  <span>Memo: Amazon Ads Billed in Settlement:</span>
+                  <span>Memo: Amazon Ads spend:</span>
                   <span className="text-slate-600">{formatINR(amazonBilledAds)} (not deducted here)</span>
                 </div>
               )}
@@ -283,7 +283,7 @@ export const ProfitLossView: React.FC = () => {
                     ? 'All Ad Spend (Meta + Google + Amz):'
                     : showStore
                       ? 'Meta + Google Ad Spend:'
-                      : 'Amazon Ads (Billed in Settlement):'}
+                      : 'Amazon Ads spend:'}
                 </span>
                 <span className="font-semibold text-rose-600">−{formatINR(pnl.adSpend)}</span>
               </div>
@@ -344,7 +344,7 @@ export const ProfitLossView: React.FC = () => {
 
         <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
           <SectionSourceBadge
-            source="Consolidated Ledger (Discounts, Returns, Shipping, Marketplace Fees, and Billed Ads)"
+            source="Consolidated Ledger (Discounts, Returns, Shipping, Marketplace Fees, and Amazon Ads spend)"
             channel={pnlChannel}
           />
         </div>
@@ -449,7 +449,7 @@ export const ProfitLossView: React.FC = () => {
                 <span className="text-rose-600">−{formatINR(amazonFees)}</span>
               </div>
               <div className="flex justify-between py-1 text-slate-600">
-                <span>Amazon Billed Ads in Settlement (~28%):</span>
+                <span>Amazon Ads spend:</span>
                 <span className="text-rose-600">−{formatINR(amazonBilledAds)}</span>
               </div>
               <div className="flex justify-between py-1 text-slate-600">

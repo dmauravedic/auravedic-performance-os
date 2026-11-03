@@ -135,22 +135,41 @@ export const SOURCE_ROWS: SourceRow[] = [
     group: 'Advertising',
     name: 'Google Ads',
     provides: 'Spend, conversions, conversion value',
-    origin: 'Windsor connector google_ads',
+    origin: 'Daily Google Ads sheet, tab _GoogleAds_Daily (read as one range; no other tab is opened)',
     arrives: 'Automated',
-    schedule: 'Daily at 04:51 IST',
-    today: 'Bundled snapshot to 25 Oct (landing tab google_daily).',
+    schedule: 'Daily; the site picks it up at the next build',
+    today: 'Bundled snapshot to 25 Oct until the sheet is connected.',
     freshnessKey: 'google',
     usedOn: 'Executive, P&L, Advertising'
   },
   {
     group: 'Advertising',
-    name: 'Amazon Ads report',
+    name: 'Amazon Ads (daily spend)',
+    provides: 'Daily Amazon ad spend, used as the ad cost in the P&L and on the ad pages',
+    origin: 'Windsor connector amazon_ads (landing tab amz_ads_daily)',
+    arrives: 'Automated',
+    schedule: 'Daily. Amazon reports about a day behind; two days is normal',
+    today: d =>
+      d.freshness.amazonAds
+        ? `Loaded to ${d.freshness.amazonAds.slice(0, 10)}. Replaces the settlement and flat-rate estimate for those days.`
+        : 'Not loaded yet: ad spend is the settlement billing (13–25 Oct) and a flat-rate estimate before that.',
+    freshnessKey: 'amazonAds',
+    usedOn: 'P&L, Executive, Advertising'
+  },
+  {
+    group: 'Advertising',
+    name: 'Amazon Ads monthly report',
     provides: 'Monthly ad spend, ad revenue, orders, TACOS',
-    origin: "Shan's report sheet, tab Amazon Ads (Windsor has no Amazon Ads connection)",
+    origin: "Shan's report sheet, tab Amazon Ads",
     arrives: 'Manual',
     schedule: 'One column a month',
-    today: d => `Latest month: ${lastReport(d, 'Amazon.in')}. Combined ad spend and MER still use the settlement estimate, which runs higher.`,
-    freshnessKey: 'amazonAds',
+    today: d =>
+      `Latest month: ${lastReport(d, 'Amazon.in')}. ${
+        d.freshness.amazonAds
+          ? 'Kept as a cross-check against the daily Amazon Ads spend.'
+          : 'Combined ad spend and MER still use the settlement estimate, which runs higher.'
+      }`,
+    freshnessKey: 'amazonAdsReport',
     usedOn: 'Advertising (Marketplace ads, findings)'
   },
   {

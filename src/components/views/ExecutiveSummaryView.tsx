@@ -156,13 +156,13 @@ export const ExecutiveSummaryView: React.FC = () => {
             deltaPositive={deltaAdSpend <= 0}
             subtitle={
               channel === 'shopify' ? 'Meta (5 accounts) + Google' :
-              channel === 'amazon' ? 'Amazon Billed Ads' :
+              channel === 'amazon' ? 'Amazon Ads spend' :
               channel === 'flipkart' ? 'Flipkart Ads' :
               channel === 'nykaa' ? 'Nykaa Ads + Meta Spend' :
               channel === 'myntra' ? 'Myntra Ads' :
               `Shopify ${formatINR(shopifyAdSpend, true)} + Amazon ${formatINR(amazonAdSpend, true)}`
             }
-            footnote={channel === 'all' ? 'Shopify = Meta + Google · Amazon = billed ads (pre-13 Oct estimated)' : undefined}
+            footnote={channel === 'all' ? 'Shopify = Meta + Google · Amazon = Amazon Ads spend (settlement or estimate where the daily export is not loaded)' : undefined}
             badgeText="Active Ads"
             badgeVariant="neutral"
           />
@@ -230,8 +230,8 @@ export const ExecutiveSummaryView: React.FC = () => {
             title="Amazon TACOS (Est)"
             value={`${amazonSales > 0 ? (amazonAdSpend / amazonSales * 100).toFixed(1) : '0.0'}%`}
             valueClassName="text-amber-700"
-            note={<span className="text-slate-500">Billed ads in settlement</span>}
-            sources={['amazonSales', 'amazonSettlement']}
+            note={<span className="text-slate-500">Amazon Ads spend ÷ Amazon sales</span>}
+            sources={['amazonSales', 'amazonAds']}
           />
         )}
       </div>
@@ -283,7 +283,7 @@ export const ExecutiveSummaryView: React.FC = () => {
                   <Bar yAxisId="left" dataKey="ShopifySales" stackId="sales" fill="#D97706" name="Shopify Sales" />
                   <Bar yAxisId="left" dataKey="AmazonSales" stackId="sales" fill="#FBBF24" name="Amazon Sales" />
                   <Bar yAxisId="left" dataKey="ShopifyAdSpend" stackId="ads" fill="#2563EB" name="Shopify Ad Spend (Meta + Google)" />
-                  <Bar yAxisId="left" dataKey="AmazonAdSpend" stackId="ads" fill="#93C5FD" name="Amazon Ad Spend (Billed)" />
+                  <Bar yAxisId="left" dataKey="AmazonAdSpend" stackId="ads" fill="#93C5FD" name="Amazon Ad Spend" />
                 </>
               ) : (
                 <>

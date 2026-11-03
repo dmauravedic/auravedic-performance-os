@@ -48,8 +48,9 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           SHAN_SHEET_ID: ${{ secrets.SHAN_SHEET_ID }}
+          GOOGLE_ADS_SHEET_ID: ${{ secrets.GOOGLE_ADS_SHEET_ID }}
         run: |
-          if [ -n "$GOOGLE_SERVICE_ACCOUNT_JSON" ] && { [ -n "$GOOGLE_SHEET_ID" ] || [ -n "$SHAN_SHEET_ID" ]; }; then
+          if [ -n "$GOOGLE_SERVICE_ACCOUNT_JSON" ] && { [ -n "$GOOGLE_SHEET_ID" ] || [ -n "$SHAN_SHEET_ID" ] || [ -n "$GOOGLE_ADS_SHEET_ID" ]; }; then
             pip install gspread google-auth
           fi
           python scripts/sync_from_sheet.py

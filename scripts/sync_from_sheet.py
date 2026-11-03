@@ -17,7 +17,16 @@ Sheet layout: one tab per table, header names in row 1 (extra columns are ignore
   daily          -> src/data/dailyData.ts  one row per day, columns as in scripts/data_io.py
 
 Windsor.ai exports land in their own tabs (see scripts/windsor_daily.py) and are merged over the
-daily series: meta_daily, google_daily, amz_sales_date, shop_daily.
+daily series: meta_daily, amz_sales_date, amz_ads_daily (Amazon Ads spend, which replaces the
+estimate in amazonBilledAds), shop_daily.
+
+Google Ads is read from the `_GoogleAds_Daily` tab of a separate sheet (GOOGLE_ADS_SHEET_ID), one range
+only (A1:Z6000), and merged over the same daily series. If GOOGLE_ADS_SHEET_ID is not set, the same tab
+is looked for in Shan's report sheet and quietly skipped when it is not there.
+
+The `freshness` strip follows the data: for each source the exports fed, the newest day it covers in
+the series is written as its last-updated time (over any date typed in the freshness tab for that
+key; keys no export feeds, such as settlement, Flipkart and the warehouse, keep the tab's value).
 
 A tab that is missing or has no data rows is skipped and the bundled snapshot is kept for it. A tab
 that is present but malformed stops the run with an error naming the tab, row and column.
@@ -43,6 +52,7 @@ Environment (Google mode)
   GOOGLE_SERVICE_ACCOUNT_JSON   the service account key (JSON text); share each sheet with its email
   GOOGLE_SHEET_ID               the dashboard feed workbook
   SHAN_SHEET_ID                 Shan's report sheet (optional)
+  GOOGLE_ADS_SHEET_ID           the sheet that holds the _GoogleAds_Daily tab (optional)
 Sheet ids are never printed, because the workflow log of a public repository is public.
 With neither sheet configured, the script exits cleanly and the build keeps the bundled snapshot.
 """
@@ -57,7 +67,7 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from data_io import DAILY_FIELDS, SyncError, parse_number, read_daily_ts, write_daily_ts  # noqa: E402
-from windsor_daily import WINDSOR_TABS, merge_into_daily, parse_windsor  # noqa: E402
+from windsor_daily import FRESHNESS_KEYS, GOOGLE_TAB, WINDSOR_TABS, merge_into_daily, parse_windsor  # noqa: E402
 from marketplace_ads import ADS_RANGES, build_marketplace_ads  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -234,7 +244,7 @@ def parse_daily(table):
 
 def read_csv_tables(directory):
     tables = {}
-    for tab in list(TABLES) + ["freshness", "daily"] + WINDSOR_TABS:
+    for tab in list(TABLES) + ["freshness", "daily", GOOGLE_TAB] + WINDSOR_TABS:
         path = os.path.join(directory, f"{tab}.csv")
         if os.path.exists(path):
             with open(path, newline="", encoding="utf-8-sig") as f:
@@ -271,6 +281,45 @@ def read_google_tables(sheet_id, credentials_json):
         except gspread.WorksheetNotFound:
             print(f"  tab '{tab}' not found in the sheet: keeping the bundled snapshot for it")
     return tables
+
+
+GOOGLE_ADS_TAB = "_GoogleAds_Daily"
+GOOGLE_ADS_ROWS = 6000  # one bounded range; a tab this long is refused rather than read half
+
+
+def read_google_ads_sheet(sheet_id, credentials_json, required):
+    """Rows of the _GoogleAds_Daily tab, or None when the tab is not there and `required` is False.
+    Only this tab is read, in one range: the sheet it sits in is a copy of Shan's report sheet and
+    holds tabs that must not be opened."""
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+    except ImportError:
+        raise SyncError("Google mode needs: pip install gspread google-auth")
+    creds = Credentials.from_service_account_info(
+        json.loads(credentials_json), scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"]
+    )
+    try:
+        book = gspread.authorize(creds).open_by_key(sheet_id)
+        # Raw values, so the date column arrives as a serial number whatever the sheet's locale
+        reply = book.values_get(
+            f"'{GOOGLE_ADS_TAB}'!A1:Z{GOOGLE_ADS_ROWS}",
+            params={"valueRenderOption": "UNFORMATTED_VALUE", "dateTimeRenderOption": "SERIAL_NUMBER"},
+        )
+    except gspread.exceptions.APIError as e:
+        status = getattr(e, "code", None) or getattr(getattr(e, "response", None), "status_code", "error")
+        if not required and status == 400:
+            print(f"  tab '{GOOGLE_ADS_TAB}' is not in Shan's report sheet: keeping the bundled Google figures")
+            return None
+        hint = "share the sheet with the service account" if status in (403, 404) else "check the tab name"
+        raise SyncError(f"Google Ads sheet: cannot read tab '{GOOGLE_ADS_TAB}' (HTTP {status}); {hint}")
+    values = reply.get("values", [])
+    if len(values) >= GOOGLE_ADS_ROWS:
+        raise SyncError(
+            f"Google Ads sheet: tab '{GOOGLE_ADS_TAB}' has {GOOGLE_ADS_ROWS}+ rows, more than the range read; "
+            "keep the last 90 days in the tab or raise GOOGLE_ADS_ROWS"
+        )
+    return values
 
 
 # ---------------------------------------------------------------------------
@@ -513,7 +562,7 @@ def read_shan_google(sheet_id, credentials_json):
     return {tab: vr.get("values", []) for tab, vr in zip(SHAN_RANGES, reply.get("valueRanges", []))}
 
 
-def apply(tables, shan_tables, out_dir, dry_run):
+def apply(tables, shan_tables, google_rows, out_dir, dry_run):
     results = {}
     for tab, spec in TABLES.items():
         items = parse_table(tab, spec, tables.get(tab))
@@ -526,12 +575,16 @@ def apply(tables, shan_tables, out_dir, dry_run):
     with open(os.path.join(DATA_DIR, "dashboardData.json"), encoding="utf-8") as f:
         data = json.load(f)
 
-    windsor_sources, windsor_notes = parse_windsor(tables, data)
+    # The Google Ads sheet is a source of its own, so it wins over a google_daily tab left in the workbook
+    daily_tables = {**tables, GOOGLE_TAB: google_rows} if google_rows else tables
+    windsor_sources, windsor_notes = parse_windsor(daily_tables, data)
+    stamps = {}
     if windsor_sources:
         base = daily or read_daily_ts(os.path.join(DATA_DIR, "dailyData.ts"))
-        daily, merge_notes = merge_into_daily(base, windsor_sources)
+        daily, merge_notes, covered = merge_into_daily(base, windsor_sources)
         for note in windsor_notes + merge_notes:
             print(f"  {note}")
+        stamps = {FRESHNESS_KEYS[name]: f"{last} 23:59 IST" for name, last in covered.items() if name in FRESHNESS_KEYS}
 
     for tab, items in results.items():
         data[TABLES[tab]["target"]] = items
@@ -541,6 +594,12 @@ def apply(tables, shan_tables, out_dir, dry_run):
         merged["assumptions"] = {**data["freshness"].get("assumptions", {}), **fresh.get("assumptions", {})}
         data["freshness"] = merged
         print(f"  freshness: {len(fresh)} keys")
+    # What each export actually fed. This beats a date typed in the freshness tab: the periods and
+    # every figure follow the series, so a typed date later than the series would claim freshness the
+    # numbers do not have. Keys no export feeds (settlement, Flipkart, warehouse) keep the tab's value.
+    if stamps:
+        data["freshness"].update(stamps)
+        print("  freshness follows the data: " + ", ".join(f"{k} {v[:10]}" for k, v in sorted(stamps.items())))
     for tab in ("marketplaces", "monthly", "meta_accounts", "freshness", "daily") if tables else ():
         if tab not in results and not (tab == "freshness" and fresh) and not (tab == "daily" and daily):
             print(f"  {tab}: empty or missing, keeping the bundled snapshot")
@@ -589,8 +648,9 @@ def main():
         creds = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
         feed_id = os.environ.get("GOOGLE_SHEET_ID", "").strip()
         shan_id = os.environ.get("SHAN_SHEET_ID", "").strip()
+        gads_id = os.environ.get("GOOGLE_ADS_SHEET_ID", "").strip()
 
-        tables = shan_tables = None
+        tables = shan_tables = google_rows = None
         if args.csv_dir:
             print(f"Reading CSV exports from {args.csv_dir}")
             tables = read_csv_tables(args.csv_dir)
@@ -603,12 +663,16 @@ def main():
         elif shan_id and creds:
             print("Reading Shan's report sheet (named tabs and fixed ranges only)")
             shan_tables = read_shan_google(shan_id, creds)
+        if creds and (gads_id or shan_id):
+            # An explicit GOOGLE_ADS_SHEET_ID must work; looking in Shan's sheet is only a fallback
+            print("Reading the Google Ads daily tab (one range, no other tab)")
+            google_rows = read_google_ads_sheet(gads_id or shan_id, creds, required=bool(gads_id))
 
-        if tables is None and shan_tables is None:
-            print("Google Sheet sync is not configured (GOOGLE_SERVICE_ACCOUNT_JSON plus GOOGLE_SHEET_ID")
-            print("and / or SHAN_SHEET_ID). Keeping the bundled snapshot.")
+        if tables is None and shan_tables is None and google_rows is None:
+            print("Google Sheet sync is not configured (GOOGLE_SERVICE_ACCOUNT_JSON plus GOOGLE_SHEET_ID,")
+            print("SHAN_SHEET_ID and / or GOOGLE_ADS_SHEET_ID). Keeping the bundled snapshot.")
             return 0
-        apply(tables or {}, shan_tables, args.out_dir, args.dry_run)
+        apply(tables or {}, shan_tables, google_rows, args.out_dir, args.dry_run)
         return 0
     except SyncError as e:
         print(f"SYNC FAILED: {e}", file=sys.stderr)

@@ -61,7 +61,8 @@ export const AdvertisingView: React.FC = () => {
   const overclaim = shopifySales > 0 ? (metaPurchaseVal + googleConversionVal) / shopifySales : 0;
 
   const be = breakEven(slice, defaultCOGS, flatShipping);
-  const platforms = platformRows(slice);
+  const amazonAdsLoaded = Boolean(data.freshness.amazonAds);
+  const platforms = platformRows(slice, amazonAdsLoaded);
   const accounts = buildAccountRows(metaAccounts, slice, be.roas);
   const months = monthlySeries(monthlyPerformance);
   const adSets = buildAdSetRows(adSetDays, AD_SETS, new Set(slice.map(r => r.date)));
@@ -78,10 +79,10 @@ export const AdvertisingView: React.FC = () => {
         activePeriod={period}
         onPeriodChange={setPeriod}
         title="Cross-Channel Advertising & Paid Acquisition"
-        subtitle={`Tracking Meta (5 accounts), Google Ads, Amazon Billed Ads & Flipkart Ads for ${periodLabel}`}
+        subtitle={`Tracking Meta (5 accounts), Google Ads, Amazon Ads & Flipkart Ads for ${periodLabel}`}
         extraRight={
           <SectionSourceBadge
-            source="Windsor.ai (facebook & google_ads) + Settlement Billed Ads"
+            source="Meta (Windsor) + Google Ads sheet + Amazon Ads (Windsor, settlement where not loaded)"
             syncCadence="Daily 04:51 IST"
           />
         }
@@ -110,13 +111,17 @@ export const AdvertisingView: React.FC = () => {
         />
 
         <MetricCard
-          title="Amazon Billed Ads"
-          sources={['amazonSettlement']}
+          title="Amazon Ad Spend"
+          sources={['amazonAds']}
           value={formatINR(amazonAds)}
-          subtitle={`Settlement deduction | ${periodLabel}`}
-          badgeText="Amazon SP"
+          subtitle={`${amazonAdsLoaded ? 'Amazon Ads export' : 'Settlement deduction'} | ${periodLabel}`}
+          badgeText={amazonAdsLoaded ? 'Amazon Ads' : 'Amazon SP'}
           badgeVariant="warning"
-          footnote={`~${formatINR(amazonAds / slice.length, true)} / day in settlements (pre-13 Oct estimated)`}
+          footnote={
+            amazonAdsLoaded
+              ? `~${formatINR(amazonAds / slice.length, true)} / day from the daily Amazon Ads export`
+              : `~${formatINR(amazonAds / slice.length, true)} / day in settlements (pre-13 Oct estimated)`
+          }
         />
 
         <MetricCard
@@ -134,7 +139,7 @@ export const AdvertisingView: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="All Paid Media"
-          sources={['meta', 'google', 'amazonSettlement', 'flipkart']}
+          sources={['meta', 'google', 'amazonAds', 'flipkart']}
           value={formatINR(totalPaid)}
           subtitle="Meta + Google + Amazon + Flipkart ads"
           badgeText="Spend"
@@ -193,7 +198,7 @@ export const AdvertisingView: React.FC = () => {
           subtitle="Where the money goes and what each rupee returns. The basis column says how comparable the numbers are."
           badge={
             <SectionSourceBadge
-              source="Windsor.ai (facebook & google_ads) + Settlement Billed Ads + Flipkart Ads report"
+              source="Meta (Windsor) + Google Ads sheet + Amazon Ads (Windsor, settlement where not loaded) + Flipkart Ads report"
             />
           }
         />
@@ -209,7 +214,7 @@ export const AdvertisingView: React.FC = () => {
             <SectionSourceBadge
               source="Shan's Report Sheet (Amazon Ads, FKT, Nykaa Ads, Myntra Ads, Purplle Ads, Snapdeal Ads tabs)"
               latency="Entered by hand, monthly"
-              sources={['amazonAds', 'flipkartAds', 'nykaa', 'myntra']}
+              sources={['amazonAdsReport', 'flipkartAds', 'nykaa', 'myntra']}
             />
           }
         />

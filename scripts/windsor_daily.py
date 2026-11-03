@@ -1,15 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-Windsor.ai exports -> the dashboard's daily series.
+Daily ad and sales exports -> the dashboard's daily series.
 
 Windsor writes each export into its own tab of the feed workbook (a landing zone: nothing in these
 tabs is edited by hand). This module reads those tabs, aggregates them to one row per day, and merges
 them over the daily series. The tab names follow the scope document (section 4.1):
 
   meta_daily      Windsor `facebook`    account x campaign x day
-  google_daily    Windsor `google_ads`  campaign x day
   amz_sales_date  Windsor `amazon_sp`   Sales & Traffic by date
+  amz_ads_daily   Windsor `amazon_ads`  campaign x day (advertising cost)
   shop_daily      Windsor `shopify`     day
+
+Google Ads is the exception: it is read from the `_GoogleAds_Daily` tab of a separate sheet (see
+sync_from_sheet.py), not from Windsor, and is handed in under the key `google_daily`.
 
 Windsor's header names are not fixed, so columns are found by name with several accepted spellings
 (case, spaces and underscores ignored). A missing required column stops the run with a message that
@@ -17,12 +20,16 @@ lists what was found. Defences against the usual traps:
 
   - excluded Meta accounts (status Excluded in metaAccounts) are dropped;
   - the handbook glitch rule drops a Meta row whose purchase value per purchase exceeds Rs 50,000;
-  - if Windsor appends instead of replacing, repeated rows for the same key keep only the last copy.
+  - if an export appends instead of replacing, repeated rows for the same key keep only the last copy.
 
 A day is only overwritten where it already exists in the series. Days after the end of the series are
-reported but not added: a new day needs columns Windsor does not supply (Flipkart, Nykaa and Myntra
+reported but not added: a new day needs columns these exports do not supply (Flipkart, Nykaa and Myntra
 sales, Amazon settlement), so extend the series by adding the day to the daily tab. The app's periods
 follow the newest date in the series, so they roll forward as soon as the day is there.
+
+Amazon Ads spend replaces the flat-rate / settlement estimate in `amazonBilledAds` for every day the
+export covers, so the P&L and the ad pages use what Amazon Ads reports. Total ad spend and MER keep
+meaning Meta + Google.
 """
 
 import datetime
@@ -30,7 +37,8 @@ import re
 
 from data_io import SyncError, parse_number
 
-WINDSOR_TABS = ["meta_daily", "google_daily", "amz_sales_date", "shop_daily"]
+WINDSOR_TABS = ["meta_daily", "amz_sales_date", "amz_ads_daily", "shop_daily"]
+GOOGLE_TAB = "google_daily"  # the key Google Ads rows are filed under; not a Windsor tab any more
 
 # Amazon days without settlement rows are estimated at the handbook rates (same as the seed series)
 AMAZON_REFUND_RATE, AMAZON_FEE_RATE, AMAZON_ADS_RATE = 0.048, 0.272, 0.275
@@ -69,11 +77,21 @@ def parse_date(value, where):
     raise SyncError(f"{where}: cannot read the date '{value}'")
 
 
-def table_body(table):
-    if not table or len(table) < 2:
+def table_body(table, header_at=0):
+    """(header, [(sheet row number, row)]). Row numbers count from the top of the tab, for messages."""
+    if not table or len(table) < header_at + 2:
         return None, []
-    rows = [(i + 2, r) for i, r in enumerate(table[1:]) if any(str(c).strip() for c in r)]
-    return table[0], rows
+    rows = [(i + 1, r) for i, r in enumerate(table) if i > header_at and any(str(c).strip() for c in r)]
+    return table[header_at], rows
+
+
+def header_index(table, needed, scan=15):
+    """Row that holds the column names, for tabs with a title or note above them. 0 if none looks right."""
+    for i, row in enumerate((table or [])[:scan]):
+        names = [squash(c) for c in row]
+        if all(any(n in names for n in aliases) for aliases in needed):
+            return i
+    return 0
 
 
 def at(row, idx):
@@ -142,25 +160,43 @@ def meta_daily(table, excluded):
     return out, note
 
 
+GOOGLE_SPEND = ["spend", "cost", "amountspent", "totalcost", "costinr"]
+GOOGLE_MICROS = ["costmicros", "metricscostmicros"]  # Google Ads API cost, in millionths of the currency
+GOOGLE_CONV = ["conversions", "allconversions", "metricsconversions"]
+GOOGLE_VALUE = [
+    "conversionsvalue", "conversionvalue", "allconversionsvalue", "allconversionvalue", "convvalue",
+    "allconvvalue", "metricsconversionsvalue", "totalconversionvalue",
+]
+
+
 def google_daily(table):
-    header, rows = table_body(table)
+    """Google Ads daily rows (the `_GoogleAds_Daily` tab). Campaign x day or one row a day; the tab
+    may carry a title or note above its header row, and cost may be in rupees or in micros."""
+    at_row = header_index(table, [["date", "day", "segmentsdate"], GOOGLE_SPEND + GOOGLE_MICROS])
+    header, rows = table_body(table, at_row)
     if not rows:
         return None, None
+    micros = find_col(header, GOOGLE_MICROS)
     c = dict(
-        date=find_col(header, ["date", "day"]),
-        spend=find_col(header, ["spend", "cost"]),
-        conv=find_col(header, ["conversions"]),
-        value=find_col(header, ["conversionsvalue", "conversionvalue", "allconversionsvalue"]),
+        date=find_col(header, ["date", "day", "segmentsdate"]),
+        spend=find_col(header, GOOGLE_SPEND, contains=["cost", "spend"], avoid=["per", "cpc", "cpm", "cpa", "conv", "micros", "avg", "average"]),
+        conv=find_col(header, GOOGLE_CONV, contains=["conversions"], avoid=["value", "rate", "per", "cost"]),
+        value=find_col(header, GOOGLE_VALUE, contains=["convvalue", "conversionvalue", "conversionsvalue"], avoid=["per", "rate"]),
     )
+    if c["spend"] is None and micros is not None:
+        c["spend"] = micros
     need("google_daily", header, **{"date": c["date"], "spend": c["spend"], "conversions": c["conv"], "conversions value": c["value"]})
+    scale = 1e-6 if c["spend"] == micros else 1
     c_camp = find_col(header, ["campaignid", "campaign", "campaignname"])
     kept, processed = {}, 0
     for line, row in rows:
+        if not str(at(row, c["date"])).strip():
+            continue  # a blank date cell: a spacer or a totals line, not a day
         date = parse_date(at(row, c["date"]), f"google_daily row {line}")
         processed += 1
         kept[(date, str(at(row, c_camp)).strip().lower())] = (
             date,
-            metric(row, c["spend"], "google_daily", line, "spend"),
+            metric(row, c["spend"], "google_daily", line, "spend") * scale,
             metric(row, c["conv"], "google_daily", line, "conversions"),
             metric(row, c["value"], "google_daily", line, "conversions value"),
         )
@@ -172,6 +208,34 @@ def google_daily(table):
         a[2] += value
     out = {d: {"googleSpend": round(a[0], 2), "googleConversions": round(a[1], 1), "googleConversionValue": round(a[2], 2)} for d, a in agg.items()}
     return out, f"google_daily: {len(out)} days; {processed - len(kept)} repeated rows ignored"
+
+
+AMAZON_ADS_SPEND = ["cost", "spend", "adspend", "totalcost", "adcost", "advertisingcost"]
+
+
+def amz_ads_daily(table):
+    """Amazon Ads (Windsor `amazon_ads`), campaign x day. Only the daily spend is used."""
+    header, rows = table_body(table)
+    if not rows:
+        return None, None
+    c_date = find_col(header, ["date", "day"])
+    c_spend = find_col(header, AMAZON_ADS_SPEND, contains=["cost", "spend"], avoid=["per", "cpc", "acos", "roas", "micros", "conv"])
+    need("amz_ads_daily", header, **{"date": c_date, "cost (spend)": c_spend})
+    c_camp = find_col(header, ["campaignid", "campaign", "campaignname"])
+    c_type = find_col(header, ["adtype", "campaigntype", "adproduct", "type"])
+    kept, processed = {}, 0
+    for line, row in rows:
+        if not str(at(row, c_date)).strip():
+            continue
+        date = parse_date(at(row, c_date), f"amz_ads_daily row {line}")
+        processed += 1
+        key = (date, str(at(row, c_camp)).strip().lower(), str(at(row, c_type)).strip().lower())
+        kept[key] = (date, metric(row, c_spend, "amz_ads_daily", line, "cost"))
+    agg = {}
+    for date, spend in kept.values():
+        agg[date] = agg.get(date, 0) + spend
+    out = {d: {"amazonBilledAds": round(s, 2)} for d, s in agg.items()}
+    return out, f"amz_ads_daily: {len(out)} days; {processed - len(kept)} repeated rows ignored; replaces the estimated Amazon ad spend"
 
 
 def amz_sales_date(table):
@@ -233,8 +297,9 @@ def parse_windsor(tables, data):
     }
     parsers = {
         "meta": lambda: meta_daily(tables.get("meta_daily"), excluded),
-        "google": lambda: google_daily(tables.get("google_daily")),
+        "google": lambda: google_daily(tables.get(GOOGLE_TAB)),
         "amazon": lambda: amz_sales_date(tables.get("amz_sales_date")),
+        "amazonads": lambda: amz_ads_daily(tables.get("amz_ads_daily")),
         "shopify": lambda: shop_daily(tables.get("shop_daily")),
     }
     sources, notes = {}, []
@@ -271,26 +336,43 @@ def merge_into_daily(base_rows, sources):
         if "amazon" in names:
             # Refunds, fees and billed ads come from settlement, not from this export. Until settlement
             # rows are added they follow sales: scaled from the series' own estimate, or at the handbook
-            # rates if that day had no sales.
+            # rates if that day had no sales. A day the Amazon Ads export covers keeps that export's spend.
+            own_ads = "amazonads" in names
             old = old_sales.get(date, 0)
             if old > 0:
                 ratio = r["amazonSales"] / old
-                for key in ("amazonRefunds", "amazonFees", "amazonBilledAds"):
+                for key in ("amazonRefunds", "amazonFees") + (() if own_ads else ("amazonBilledAds",)):
                     r[key] = round(r[key] * ratio, 2)
             else:
                 r["amazonRefunds"] = round(r["amazonSales"] * AMAZON_REFUND_RATE, 2)
                 r["amazonFees"] = round(r["amazonSales"] * AMAZON_FEE_RATE, 2)
-                r["amazonBilledAds"] = round(r["amazonSales"] * AMAZON_ADS_RATE, 2)
+                if not own_ads:
+                    r["amazonBilledAds"] = round(r["amazonSales"] * AMAZON_ADS_RATE, 2)
         r["totalAdsIncluded"] = round(r["metaSpend"] + r["googleSpend"], 2)
         r["totalSales"] = round(r["shopifyPreReturns"] + r["amazonSales"], 2)
         r["salesPerRupeeAd"] = round(r["totalSales"] / r["totalAdsIncluded"], 2) if r["totalAdsIncluded"] > 0 else 0
 
     merged = [rows[d] for d in sorted(rows)]
     ahead = sorted(d for d in beyond if d > merged[-1]["date"])
-    notes = [f"daily: {len(touched)} of {len(merged)} days overwritten from Windsor ({', '.join(sorted(sources))})"]
+    notes = [f"daily: {len(touched)} of {len(merged)} days overwritten from the exports ({', '.join(sorted(sources))})"]
     if ahead:
         notes.append(
-            f"daily: {len(ahead)} day(s) after {merged[-1]['date']} ({ahead[0]} to {ahead[-1]}) are in Windsor but not added: "
-            "a new day also needs the columns Windsor does not supply, so add it to the daily tab"
+            f"daily: {len(ahead)} day(s) after {merged[-1]['date']} ({ahead[0]} to {ahead[-1]}) are in the exports but not added: "
+            "a new day also needs the columns they do not supply, so add it to the daily tab"
         )
-    return merged, notes
+    # Newest day of the series each source actually fed: what the freshness strip should say
+    covered = {}
+    for date, names in touched.items():
+        for name in names:
+            covered[name] = max(covered.get(name, date), date)
+    return merged, notes, covered
+
+
+# Which `freshness` key each source's newest loaded day is written to (see sync_from_sheet.apply)
+FRESHNESS_KEYS = {
+    "meta": "metaAds",
+    "google": "googleAds",
+    "amazon": "amazonSales",
+    "amazonads": "amazonAds",
+    "shopify": "shopifySales",
+}
