@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   # Rebuild every morning (06:30 IST, after the 04:51 IST data pulls) so the site picks up the
-  # latest rows from the Google Sheet. Until the sheet is configured this just rebuilds the snapshot.
+  # latest data from Windsor and the Google Sheets. With no secrets set this just rebuilds the snapshot.
   schedule:
     - cron: '0 1 * * *'
   workflow_dispatch:
@@ -38,13 +38,18 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      # Pulls the sheet into src/data before the build. With no secret / variable set it prints a
-      # notice and keeps the bundled snapshot; with bad sheet data it fails the run, so the last
-      # good site stays live instead of publishing broken numbers.
-      - name: Sync data from the Google Sheet
-        # The sheet ids are secrets, not variables: a variable's value is printed in the workflow
-        # log, and the log of a public repository is public.
+      # Pulls Windsor and the sheets into src/data before the build. With no secret set it prints a
+      # notice and keeps the bundled snapshot; with bad data it fails the run, so the last good site
+      # stays live instead of publishing broken numbers.
+      - name: Sync data
+        # The sheet ids and the Windsor key are secrets, not variables: a variable's value is printed
+        # in the workflow log, and the log of a public repository is public.
+        # Windsor can take many minutes to prepare an Amazon Ads pull when its cache is cold. The sync
+        # gives all Windsor pulls 30 minutes, then skips what is not ready (that source keeps its
+        # bundled data); this cap is a backstop above that.
+        timeout-minutes: 45
         env:
+          WINDSOR_API_KEY: ${{ secrets.WINDSOR_API_KEY }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           SHAN_SHEET_ID: ${{ secrets.SHAN_SHEET_ID }}
