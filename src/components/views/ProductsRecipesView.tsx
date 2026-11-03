@@ -3,6 +3,7 @@ import { useDashboard } from '../../context/DashboardContext';
 import { MetricCard } from '../common/MetricCard';
 import { SectionSourceBadge } from '../common/SectionSourceBadge';
 import { formatINR, formatPercent, formatNumber } from '../../utils/formatters';
+import { bundleEconomics } from '../../utils/unitEconomics';
 import {
   Layers,
   Search,
@@ -22,32 +23,8 @@ export const ProductsRecipesView: React.FC = () => {
   const [selectedBaseKey, setSelectedBaseKey] = useState<string>('K100');
   const [productSearch, setProductSearch] = useState<string>('');
 
-  // Landed cost is the flat per-unit cost the P&L uses, times the units in the bundle, so this table
-  // and the P&L cannot disagree. The sheet's own landed costs are not used until finance supplies real ones.
-  const unitsInBundle = (key: string): number | null => {
-    if (key === 'DEFAULT') return 1;
-    const parts = recipes.find(r => r.code === `AV-${key.replace('+', '-')}`)?.parts;
-    return parts ? Object.values(parts).reduce((sum, n) => sum + n, 0) : null;
-  };
-  const economics = Object.entries(unitEconomics).map(([key, item]) => {
-    const units = unitsInBundle(key);
-    if (units === null) return { key, item, units, flat: false };
-    // The baseline row is already the flat assumption, with its own profit figures: leave it as it is.
-    if (key === 'DEFAULT') return { key, item, units, flat: true };
-    const cogs = units * defaultCOGS;
-    const oldCost = item.cogs + item.shipping + item.metaCAC;
-    const newCost = cogs + item.shipping + item.metaCAC;
-    // RTO penalty grows with the order's cost, in the same proportion as in the sheet.
-    const rtoCost = oldCost > 0 ? Math.round(item.rtoCost * (newCost / oldCost)) : item.rtoCost;
-    const netProfitWithoutRTO = item.sellingPrice - newCost;
-    const netProfitWithRTO = netProfitWithoutRTO - rtoCost;
-    return {
-      key,
-      units,
-      flat: true,
-      item: { ...item, cogs, rtoCost, netProfitWithoutRTO, netProfitWithRTO }
-    };
-  });
+  // Landed cost is the flat per-unit cost the P&L uses, times the units in the bundle (see utils/unitEconomics.ts)
+  const economics = bundleEconomics(unitEconomics, recipes, defaultCOGS);
 
   const selectedBase = baseProducts.find(bp => bp.key === selectedBaseKey) || baseProducts[0];
   const containingListings = recipes.filter(r => r.parts && r.parts[selectedBaseKey]);

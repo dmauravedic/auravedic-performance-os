@@ -26,6 +26,8 @@ npm run preview
 
 ## 📊 The 8 Core Pages
 
+**Today's Actions** is the page the app opens on, written for the people who run the day-to-day rather than read the numbers. It turns the figures below into a ranked list of plain-language cards (Urgent, This week, Keep an eye), each with what to do, why, at most one figure, a link to the page with the detail, and a note when the data behind it is old or a rough estimate. Chips filter it by lane (Ads, Stock, Orders & COD, Marketplaces, Data). It also lists what is working and what not to trust yet. The rules and their thresholds are in `src/utils/actions.ts`; there is no hand-typed content, so it changes whenever the data does. Creative-fatigue findings are left out on purpose: that ad-set split is illustrative.
+
 1. **Executive Summary**:
    - High-level KPIs: Total Gross Sales (pre-returns), Blended Ad Spend, Blended MER, Realistic Net Profit, Contribution Margin %, Total Orders, Blended AOV, CAC, Amazon TACOS.
    - Channel Sales Mix: Stacked multi-channel volume over time (Shopify vs Amazon vs Flipkart vs Others).

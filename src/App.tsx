@@ -4,6 +4,7 @@ import { FreshnessStrip } from './components/layout/FreshnessStrip';
 import { StaleBanner } from './components/layout/StaleBanner';
 import { Header } from './components/layout/Header';
 import { Sidebar } from './components/layout/Sidebar';
+import { ActionsView } from './components/views/ActionsView';
 import { ExecutiveSummaryView } from './components/views/ExecutiveSummaryView';
 import { ProfitLossView } from './components/views/ProfitLossView';
 import { AdvertisingView } from './components/views/AdvertisingView';
@@ -30,6 +31,7 @@ const DashboardContent: React.FC = () => {
         <Sidebar />
 
         <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 max-w-[1600px] mx-auto w-full">
+          {currentView === 'actions' && <ActionsView />}
           {currentView === 'executive' && <ExecutiveSummaryView />}
           {currentView === 'pnl' && <ProfitLossView />}
           {currentView === 'advertising' && <AdvertisingView />}

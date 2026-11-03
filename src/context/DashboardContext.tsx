@@ -4,7 +4,8 @@ import { MARKETPLACE_COGS_PCT } from '../data/assumptions';
 
 export type TimePeriod = 'yesterday' | '7d' | '14d' | '30d' | 'mtd' | 'all';
 export type ChannelFilter = 'all' | 'shopify' | 'amazon' | 'flipkart' | 'nykaa' | 'myntra';
-export type DashboardView = 
+export type DashboardView =
+  | 'actions'
   | 'executive'
   | 'pnl'
   | 'advertising'
@@ -47,7 +48,7 @@ export const DashboardProvider: React.FC<{ children: ReactNode }> = ({ children 
   const [data, setData] = useState<DashboardDataBundle>(initialDashboardData);
   const [period, setPeriod] = useState<TimePeriod>('mtd');
   const [channel, setChannel] = useState<ChannelFilter>('all');
-  const [currentView, setCurrentView] = useState<DashboardView>('executive');
+  const [currentView, setCurrentView] = useState<DashboardView>('actions');
 
   // Operational assumptions
   const [defaultCOGS, setDefaultCOGS] = useState<number>(125);

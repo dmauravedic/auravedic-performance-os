@@ -11,8 +11,10 @@ import {
   Database,
   Sparkles,
   ShieldCheck,
-  PackageCheck
+  PackageCheck,
+  ListChecks
 } from 'lucide-react';
+import { useActionPlan } from '../../utils/useActionPlan';
 
 interface NavItem {
   id: DashboardView;
@@ -26,7 +28,17 @@ interface NavItem {
 export const Sidebar: React.FC = () => {
   const { currentView, setCurrentView } = useDashboard();
 
+  const plan = useActionPlan();
+
   const navItems: NavItem[] = [
+    {
+      id: 'actions',
+      label: "Today's Actions",
+      sublabel: 'What to do, in plain words',
+      icon: <ListChecks className="w-4 h-4" />,
+      badge: plan.counts.urgent > 0 ? `${plan.counts.urgent} urgent` : undefined,
+      badgeColor: 'rose'
+    },
     {
       id: 'executive',
       label: 'Executive Summary',
