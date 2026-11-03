@@ -4,7 +4,7 @@ import { MetricCard } from '../common/MetricCard';
 import { ViewFilterBar } from '../common/ViewFilterBar';
 import { SectionSourceBadge } from '../common/SectionSourceBadge';
 import { formatINR, formatPercent, formatNumber } from '../../utils/formatters';
-import { dailyRecords } from '../../data/dailyData';
+import { resolvePeriod } from '../../utils/periods';
 import {
   ShoppingBag,
   CreditCard,
@@ -22,26 +22,7 @@ export const ShopifyStoreView: React.FC = () => {
   const { data, period, setPeriod } = useDashboard();
   const { stateCodRisk } = data;
 
-  const n = dailyRecords.length;
-  let slice = dailyRecords.slice(35, 60);
-  let periodLabel = 'MTD Oct 1–25, 2026';
-
-  if (period === 'yesterday') {
-    slice = [dailyRecords[n - 1]];
-    periodLabel = 'Yesterday (25 Oct)';
-  } else if (period === '7d') {
-    slice = dailyRecords.slice(n - 7);
-    periodLabel = 'Last 7 Days (19–25 Oct)';
-  } else if (period === '14d') {
-    slice = dailyRecords.slice(n - 14);
-    periodLabel = 'Last 14 Days (12–25 Oct)';
-  } else if (period === '30d') {
-    slice = dailyRecords.slice(n - 30);
-    periodLabel = 'Last 30 Days';
-  } else if (period === 'all') {
-    slice = dailyRecords;
-    periodLabel = '60-Day History';
-  }
+  const { current: slice, periodLabel } = resolvePeriod(period);
 
   let shopSales = 0;
   let shopOrders = 0;

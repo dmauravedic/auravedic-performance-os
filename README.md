@@ -36,7 +36,7 @@ npm run preview
    - Dual P&L view: Dashboard-basis (Sales pre-returns minus ad spend) vs Realistic P&L (Net sales minus COGS, shipping, marketplace fees, and ads).
    - Interactive Waterfall Chart: Step-by-step margin erosion from gross billings down to net profit.
    - Channel P&L Cards: Dedicated Shopify and Amazon standalone P&Ls.
-   - Dynamic Sensitivity Simulator: Adjust unit COGS (₹80–₹220), shipping rates, and monthly overheads in real time.
+   - Dynamic Sensitivity Simulator: Adjust Shopify unit COGS (₹80–₹220), marketplace COGS (20–35% of sales), shipping rates, and monthly overheads in real time.
 
 3. **Advertising & ROAS**:
    - What the data says: findings computed from the figures on the page (platform over-claim, store ads vs break-even, Amazon ad load, MER trend, creative fatigue).
@@ -72,7 +72,7 @@ npm run preview
 
 8. **Data Health & In-App Ingestion**:
    - In-App Report Uploader: Drag and drop Amazon Business Reports (`.csv`), Windsor exports, or `Shan-Report-Sheet.xlsx` to parse and update dashboard state on the fly.
-   - Governance & Assumptions: Flat ₹125 COGS default, ₹65 shipping for orders &gt; ₹499.
+   - Governance & Assumptions: Flat ₹125 COGS per unit for Shopify, marketplace COGS at 27.5% of sales (the 25–30% range, set in `src/data/assumptions.ts`), ₹65 shipping for orders &gt; ₹499.
    - Missing Reports Checklist: Outstanding data stream audits.
 
 ---
@@ -103,6 +103,8 @@ The dashboard is a static site, so "live" means the data files are refreshed bef
 | `daily` | All daily charts, P&L, Advertising | Windsor / Shopify daily exports, once real data replaces the seeded series |
 
 Format long IDs (`accountId`) and dates (`YYYY-MM-DD`) as plain text so Sheets does not turn them into numbers or dates.
+
+The period buttons follow the newest date in `daily` (`src/utils/periods.ts`): Yesterday is that day, Last 7 / 14 / 30 Days end on it, and MTD is its month against the same days of the month before. Add a row for a new day and every page moves forward on the next build; the labels show the dates, so nothing needs editing. Windsor tabs only overwrite days that already exist in `daily`: a new day also needs the columns Windsor does not supply (Flipkart, Nykaa and Myntra sales, Amazon settlement), so it has to be added to `daily` itself.
 
 **One-time setup**
 1. In Google Cloud, create a project, enable the Google Sheets API, and create a service account. Download its JSON key.

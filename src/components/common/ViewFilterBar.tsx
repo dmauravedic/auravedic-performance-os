@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChannelFilter, TimePeriod } from '../../context/DashboardContext';
 import { Filter, Calendar } from 'lucide-react';
+import { mtdButtonLabel } from '../../utils/periods';
 
 interface ViewFilterBarProps {
   showChannels?: boolean;
@@ -24,7 +25,7 @@ const DEFAULT_PERIODS: { id: TimePeriod; label: string }[] = [
   { id: '7d', label: 'Last 7D' },
   { id: '14d', label: '14 Days' },
   { id: '30d', label: '30 Days' },
-  { id: 'mtd', label: 'MTD (Oct \'26)' },
+  { id: 'mtd', label: mtdButtonLabel() },
   { id: 'all', label: 'MoM History' },
 ];
 

@@ -5,7 +5,8 @@ import { ViewFilterBar } from '../common/ViewFilterBar';
 import { SectionSourceBadge } from '../common/SectionSourceBadge';
 import { formatINR, formatPercent, formatNumber } from '../../utils/formatters';
 import { computeRealisticPnL, PnLChannel } from '../../utils/calculations';
-import { dailyRecords } from '../../data/dailyData';
+import { MARKETPLACE_COGS_PCT } from '../../data/assumptions';
+import { resolvePeriod } from '../../utils/periods';
 import {
   TrendingDown,
   TrendingUp,
@@ -36,32 +37,15 @@ export const ProfitLossView: React.FC = () => {
     setChannel,
     defaultCOGS,
     setDefaultCOGS,
+    marketplaceCOGSPct,
+    setMarketplaceCOGSPct,
     flatShipping,
     setFlatShipping,
   } = useDashboard();
 
   const [overheads, setOverheads] = useState<number>(350000);
 
-  const n = dailyRecords.length;
-  let slice = dailyRecords.slice(35, 60);
-  let periodLabel = 'MTD (1–25 Oct 2026)';
-
-  if (period === 'yesterday') {
-    slice = [dailyRecords[n - 1]];
-    periodLabel = 'Yesterday (25 Oct)';
-  } else if (period === '7d') {
-    slice = dailyRecords.slice(n - 7);
-    periodLabel = 'Last 7 Days (19–25 Oct)';
-  } else if (period === '14d') {
-    slice = dailyRecords.slice(n - 14);
-    periodLabel = 'Last 14 Days (12–25 Oct)';
-  } else if (period === '30d') {
-    slice = dailyRecords.slice(n - 30);
-    periodLabel = 'Last 30 Days';
-  } else if (period === 'all') {
-    slice = dailyRecords;
-    periodLabel = '60-Day History';
-  }
+  const { current: slice, periodLabel } = resolvePeriod(period);
 
   let shopifyGross = 0;
   let shopifyDiscounts = 0;
@@ -72,7 +56,6 @@ export const ProfitLossView: React.FC = () => {
   let amazonPromos = 0;
   let amazonFees = 0;
   let amazonBilledAds = 0;
-  let amazonOrders = 0;
   let metaGoogleSpend = 0;
 
   slice.forEach(r => {
@@ -87,14 +70,12 @@ export const ProfitLossView: React.FC = () => {
     amazonPromos += round2(r.amazonSales * 0.02);
     amazonFees += r.amazonFees;
     amazonBilledAds += r.amazonBilledAds;
-    amazonOrders += r.amazonOrders;
   });
 
   function round2(v: number) { return Math.round(v * 100) / 100; }
 
   const shopifyUnits = Math.round(shopifyOrders * 1.3);
   const shopifyOrdersOver499 = Math.round(shopifyOrders * 0.84);
-  const amazonUnits = amazonOrders;
 
   const proratedOverheads = Math.round((overheads / 30) * slice.length);
 
@@ -114,10 +95,10 @@ export const ProfitLossView: React.FC = () => {
     amazonFees,
     amazonBilledAds,
     shopifyUnits,
-    amazonUnits,
     shopifyOrdersOver499,
     metaGoogleSpend,
     customCOGSPerUnit: defaultCOGS,
+    marketplaceCOGSPct,
     flatShippingRate: flatShipping,
     overheads: proratedOverheads
   });
@@ -129,9 +110,18 @@ export const ProfitLossView: React.FC = () => {
   const storeMargin = storeNetRevenue > 0 ? (storeNetProfit / storeNetRevenue) * 100 : 0;
 
   const amazonNetRevenue = amazonPrincipal - amazonRefunds - amazonPromos;
-  const amazonCOGS = amazonUnits * defaultCOGS;
-  const amazonNetProfit = amazonNetRevenue - amazonFees - amazonBilledAds - amazonCOGS;
+  // Marketplace COGS is a share of the channel's sales; the owner's range (25-30%) is shown as a spread
+  const amazonCOGSAt = (pct: number) => amazonPrincipal * (pct / 100);
+  const amazonNetProfitAt = (pct: number) => amazonNetRevenue - amazonFees - amazonBilledAds - amazonCOGSAt(pct);
+  const amazonCOGS = amazonCOGSAt(marketplaceCOGSPct);
+  const amazonNetProfit = amazonNetProfitAt(marketplaceCOGSPct);
   const amazonMargin = amazonNetRevenue > 0 ? (amazonNetProfit / amazonNetRevenue) * 100 : 0;
+
+  const cogsLabel = {
+    all: `COGS: Shopify ₹${defaultCOGS}/unit, Amazon ${marketplaceCOGSPct}% of sales`,
+    shopify: `COGS @ ₹${defaultCOGS} per unit`,
+    amazon: `COGS @ ${marketplaceCOGSPct}% of Amazon sales`,
+  }[pnlChannel];
 
   // Steps that don't apply to a channel are left out (Amazon has no outbound shipping line,
   // Shopify has no marketplace fees).
@@ -157,9 +147,9 @@ export const ProfitLossView: React.FC = () => {
   const channelSuffix = pnlChannel === 'all' ? '' : ` · ${channelName}`;
 
   const pnlSource = {
-    all: 'Shopify Net + Amazon Settlement v2 + Flat COGS Assumption',
+    all: 'Shopify Net + Amazon Settlement v2 + COGS assumptions (₹/unit Shopify, % of sales Amazon)',
     shopify: 'Shopify Net + Windsor Meta & Google Spend + Flat COGS Assumption',
-    amazon: 'Amazon Settlement v2 + SP-API Sales + Flat COGS Assumption'
+    amazon: 'Amazon Settlement v2 + SP-API Sales + COGS as % of sales'
   }[pnlChannel];
 
   const methodASource = {
@@ -272,7 +262,7 @@ export const ProfitLossView: React.FC = () => {
                 <span className="font-semibold text-slate-900">{formatINR(pnl.netRevenue)}</span>
               </div>
               <div className="flex justify-between pt-1.5 text-slate-600">
-                <span>Cost of Goods Sold (COGS @ ₹{defaultCOGS}):</span>
+                <span>Cost of Goods Sold ({cogsLabel}):</span>
                 <span className="font-semibold text-rose-600">−{formatINR(pnl.cogs)}</span>
               </div>
               {showStore && (
@@ -463,13 +453,19 @@ export const ProfitLossView: React.FC = () => {
                 <span className="text-rose-600">−{formatINR(amazonBilledAds)}</span>
               </div>
               <div className="flex justify-between py-1 text-slate-600">
-                <span>Product COGS ({amazonUnits} units @ ₹{defaultCOGS}):</span>
+                <span>Product COGS ({marketplaceCOGSPct}% of sales):</span>
                 <span className="text-rose-600">−{formatINR(amazonCOGS)}</span>
               </div>
               <div className="flex justify-between py-2 text-sm font-bold border-t border-slate-200">
                 <span className="text-slate-900">Amazon Net Profit:</span>
                 <span className={amazonNetProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
                   {formatINR(amazonNetProfit)}
+                </span>
+              </div>
+              <div className="flex justify-between pb-1 text-[11px] text-slate-500">
+                <span>Net profit if COGS is {MARKETPLACE_COGS_PCT.high}% to {MARKETPLACE_COGS_PCT.low}%:</span>
+                <span>
+                  {formatINR(amazonNetProfitAt(MARKETPLACE_COGS_PCT.high))} to {formatINR(amazonNetProfitAt(MARKETPLACE_COGS_PCT.low))}
                 </span>
               </div>
             </div>
@@ -500,10 +496,10 @@ export const ProfitLossView: React.FC = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-xs">
           <div>
             <label className="text-slate-400 font-medium block mb-1">
-              Unit COGS Assumption: <strong className="text-white font-mono">₹{defaultCOGS} / unit</strong>
+              Shopify Unit COGS: <strong className="text-white font-mono">₹{defaultCOGS} / unit</strong>
             </label>
             <input 
               type="range" 
@@ -517,6 +513,26 @@ export const ProfitLossView: React.FC = () => {
               <span>₹80 (Optimistic)</span>
               <span>₹125 (Default)</span>
               <span>₹220 (Conservative)</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-slate-400 font-medium block mb-1">
+              Marketplace COGS: <strong className="text-white font-mono">{marketplaceCOGSPct}% of sales</strong>
+            </label>
+            <input
+              type="range"
+              min="20"
+              max="35"
+              step="0.5"
+              value={marketplaceCOGSPct}
+              onChange={(e) => setMarketplaceCOGSPct(Number(e.target.value))}
+              className="w-full accent-amber-500 cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+              <span>20%</span>
+              <span>{MARKETPLACE_COGS_PCT.low}–{MARKETPLACE_COGS_PCT.high}% (range) · {MARKETPLACE_COGS_PCT.default}% default</span>
+              <span>35%</span>
             </div>
           </div>
 
@@ -562,7 +578,7 @@ export const ProfitLossView: React.FC = () => {
 
         <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
           <span>Source: Parametric Financial Simulation Engine</span>
-          <span className="font-mono text-amber-400">Baseline COGS: ₹125 (Assumed fallback)</span>
+          <span className="font-mono text-amber-400">Baseline COGS: ₹125/unit Shopify, {MARKETPLACE_COGS_PCT.default}% of sales marketplaces (assumed)</span>
         </div>
       </div>
     </div>

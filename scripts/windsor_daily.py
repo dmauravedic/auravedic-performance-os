@@ -20,7 +20,9 @@ lists what was found. Defences against the usual traps:
   - if Windsor appends instead of replacing, repeated rows for the same key keep only the last copy.
 
 A day is only overwritten where it already exists in the series. Days after the end of the series are
-reported but not added: the period logic in the app is still tied to the 60-day window.
+reported but not added: a new day needs columns Windsor does not supply (Flipkart, Nykaa and Myntra
+sales, Amazon settlement), so extend the series by adding the day to the daily tab. The app's periods
+follow the newest date in the series, so they roll forward as soon as the day is there.
 """
 
 import datetime
@@ -289,6 +291,6 @@ def merge_into_daily(base_rows, sources):
     if ahead:
         notes.append(
             f"daily: {len(ahead)} day(s) after {merged[-1]['date']} ({ahead[0]} to {ahead[-1]}) are in Windsor but not added: "
-            "the app's period logic is still tied to the bundled 60-day window"
+            "a new day also needs the columns Windsor does not supply, so add it to the daily tab"
         )
     return merged, notes

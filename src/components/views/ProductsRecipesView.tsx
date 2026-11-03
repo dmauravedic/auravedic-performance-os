@@ -96,7 +96,7 @@ export const ProductsRecipesView: React.FC = () => {
             <div>
               <h3 className="font-semibold text-slate-900 text-sm">Unit Economic Margin Traps & RTO Impact (Sheet31 Audit)</h3>
               <p className="text-xs text-slate-500">
-                Landed cost at the flat ₹{defaultCOGS} per unit used across the dashboard, plus shipping, Meta acquisition CAC and the RTO penalty per order.
+                Landed cost at the flat ₹{defaultCOGS} per unit used for the Shopify store (marketplaces are costed as a % of their sales), plus shipping, Meta acquisition CAC and the RTO penalty per order.
               </p>
             </div>
           </div>
@@ -238,7 +238,7 @@ export const ProductsRecipesView: React.FC = () => {
                   <h3 className="font-bold text-slate-900 text-base">{selectedBase.name}</h3>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Category: {selectedBase.category} • MRP: ₹{selectedBase.mrp} <span className="text-amber-700">(placeholder)</span> • Landed cost: not provided yet (P&L assumes a flat ₹{defaultCOGS} per unit)
+                  Category: {selectedBase.category} • MRP: ₹{selectedBase.mrp} <span className="text-amber-700">(placeholder)</span> • Landed cost: not provided yet (the Shopify P&L assumes a flat ₹{defaultCOGS} per unit; marketplaces use a % of sales)
                 </p>
               </div>
 

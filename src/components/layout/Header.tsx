@@ -12,11 +12,12 @@ export const Header: React.FC = () => {
     monthlyRevenueTarget,
     setCurrentView,
     defaultCOGS,
+    marketplaceCOGSPct,
     flatShipping
   } = useDashboard();
 
   // Dynamic metrics based on active filter
-  const metrics = getFilteredMetrics(period, channel, defaultCOGS, flatShipping, data.monthlyPerformance);
+  const metrics = getFilteredMetrics(period, channel, defaultCOGS, flatShipping, data.monthlyPerformance, marketplaceCOGSPct);
   const targetPercent = (metrics.sales / monthlyRevenueTarget) * 100;
 
   // Context-aware label when filters are applied

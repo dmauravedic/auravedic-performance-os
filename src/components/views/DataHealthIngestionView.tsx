@@ -3,6 +3,7 @@ import { useDashboard } from '../../context/DashboardContext';
 import { SectionSourceBadge } from '../common/SectionSourceBadge';
 import { SourcesTable } from '../common/SourcesTable';
 import { parseUploadedFile } from '../../utils/fileParsers';
+import { MARKETPLACE_COGS_PCT } from '../../data/assumptions';
 import {
   Database,
   UploadCloud,
@@ -21,6 +22,7 @@ export const DataHealthIngestionView: React.FC = () => {
     updateAmazonData,
     resetToDefaults,
     defaultCOGS,
+    marketplaceCOGSPct,
     flatShipping,
   } = useDashboard();
 
@@ -168,12 +170,23 @@ export const DataHealthIngestionView: React.FC = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-            <div className="text-slate-500 font-semibold mb-1">Standard Fallback COGS</div>
+            <div className="text-slate-500 font-semibold mb-1">Shopify COGS (fallback)</div>
             <div className="text-xl font-bold text-slate-900 font-mono">₹{defaultCOGS} / unit</div>
             <p className="text-[11px] text-slate-500 mt-1">
-              Applied to every product and combo, in the P&amp;L, Advertising break-even and the Products table. Sheet31's own landed costs are not used.
+              Applied to every Shopify product and combo, in the P&amp;L, Advertising break-even and the Products table. Sheet31's own landed costs are not used.
+            </p>
+            <p className="text-[10px] text-slate-500 mt-1.5">
+              <span className="font-semibold text-slate-600">Data from:</span> a built-in assumption, changeable on the P&amp;L page.
+            </p>
+          </div>
+
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+            <div className="text-slate-500 font-semibold mb-1">Marketplace COGS</div>
+            <div className="text-xl font-bold text-slate-900 font-mono">{marketplaceCOGSPct}% of sales</div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Applied to Amazon, Flipkart, Nykaa and Myntra sales in the Executive Summary and the Amazon P&amp;L. The expected range is {MARKETPLACE_COGS_PCT.low}–{MARKETPLACE_COGS_PCT.high}%; the default is the middle, {MARKETPLACE_COGS_PCT.default}%.
             </p>
             <p className="text-[10px] text-slate-500 mt-1.5">
               <span className="font-semibold text-slate-600">Data from:</span> a built-in assumption, changeable on the P&amp;L page.

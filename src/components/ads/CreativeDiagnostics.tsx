@@ -4,6 +4,7 @@ import { ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, Tooltip, Cart
 import type { AdSetRow, FunnelRow } from '../../utils/adsAnalytics';
 import { DIAGNOSIS_ACTION } from '../../utils/adsAnalytics';
 import { formatINR, formatNumber } from '../../utils/formatters';
+import { formatDay, latestDataDate } from '../../utils/periods';
 import { ChartCard } from './ChartCard';
 import { Delta, FatigueChip } from './AdsBits';
 import { CHROME, STATUS, compactINR } from './adTheme';
@@ -226,7 +227,7 @@ export const CreativeDiagnostics: React.FC<CreativeDiagnosticsProps> = ({ adSets
           </tbody>
         </table>
         <p className="text-[11px] text-slate-400 mt-1.5">
-          Fatigue rule: CTR under 1.2%, frequency over 2.5, cost per purchase up over 10%, CTR down over 10% week on week (trailing 7 days vs the 7 before, as of 25 Oct). Three or more is high, two is moderate.
+          Fatigue rule: CTR under 1.2%, frequency over 2.5, cost per purchase up over 10%, CTR down over 10% week on week (trailing 7 days vs the 7 before, as of {formatDay(latestDataDate())}). Three or more is high, two is moderate.
         </p>
       </div>
     </div>

@@ -1,6 +1,8 @@
 import { BaseProduct, Recipe, UnitEconomicItem, MonthlyMetric } from '../data/initialData';
-import { dailyRecords, DailyRecord } from '../data/dailyData';
+import { DailyRecord } from '../data/dailyData';
 import { TimePeriod, ChannelFilter } from '../context/DashboardContext';
+import { resolvePeriod } from './periods';
+import { MARKETPLACE_COGS_PCT } from '../data/assumptions';
 
 /**
  * Calculations module for Auravedic Commerce Dashboard
@@ -36,10 +38,12 @@ export function computeRealisticPnL(params: {
   amazonFees: number;
   amazonBilledAds: number;
   shopifyUnits: number;
-  amazonUnits: number;
   shopifyOrdersOver499: number;
   metaGoogleSpend: number;
+  /** Shopify COGS per unit. */
   customCOGSPerUnit?: number;
+  /** Marketplace (Amazon) COGS as a % of the channel's sales. */
+  marketplaceCOGSPct?: number;
   flatShippingRate?: number;
   overheads?: number;
   /** Which channel's P&L to build. Defaults to the combined Shopify + Amazon P&L. */
@@ -50,6 +54,7 @@ export function computeRealisticPnL(params: {
   const includeAmazon = channel !== 'shopify';
 
   const cogsRate = params.customCOGSPerUnit ?? 125;
+  const marketplaceCOGSPct = params.marketplaceCOGSPct ?? MARKETPLACE_COGS_PCT.default;
   const shippingRate = params.flatShippingRate ?? 65;
   const companyOverheads = params.overheads ?? 0;
 
@@ -61,7 +66,7 @@ export function computeRealisticPnL(params: {
 
   // Amazon numbers
   const amazonNet = params.amazonPrincipal - params.amazonRefunds - params.amazonPromos;
-  const amazonCOGS = params.amazonUnits * cogsRate;
+  const amazonCOGS = params.amazonPrincipal * (marketplaceCOGSPct / 100);
   const amazonFees = params.amazonFees;
   const amazonAds = params.amazonBilledAds;
 
@@ -152,66 +157,20 @@ export function getFilteredMetrics(
   channel: ChannelFilter,
   cogsRate: number = 125,
   shippingRate: number = 65,
-  monthlyPerformance: MonthlyMetric[] = []
+  monthlyPerformance: MonthlyMetric[] = [],
+  marketplaceCogsPct: number = MARKETPLACE_COGS_PCT.default
 ): FilteredMetrics {
-  const n = dailyRecords.length; // 60 days
-  let currentSlice: DailyRecord[] = [];
-  let priorSlice: DailyRecord[] = [];
-  let periodLabel = 'MTD Oct 1–25';
-  let priorLabel = 'Sep 1–25';
-  let isSingleDay = false;
+  // Shopify is costed per unit (cogsRate); marketplaces as a share of their sales
+  const marketplaceCogs = (sales: number) => sales * (marketplaceCogsPct / 100);
 
-  switch (period) {
-    case 'yesterday':
-      // Index 59 is Oct 25 (Yesterday), Index 58 is Oct 24 (Day before)
-      currentSlice = [dailyRecords[n - 1]];
-      priorSlice = [dailyRecords[n - 2]];
-      periodLabel = 'Yesterday (25 Oct 2026)';
-      priorLabel = 'Prior Day (24 Oct)';
-      isSingleDay = true;
-      break;
-
-    case '7d':
-      // Last 7 days: 19 to 25 Oct (53 to 59), prior 7 days: 12 to 18 Oct (46 to 52)
-      currentSlice = dailyRecords.slice(n - 7);
-      priorSlice = dailyRecords.slice(n - 14, n - 7);
-      periodLabel = 'Last 7 Days (19–25 Oct)';
-      priorLabel = 'Prior 7 Days (12–18 Oct)';
-      break;
-
-    case '14d':
-      // Last 14 days: 12 to 25 Oct (46 to 59), prior 14 days: 28 Sep to 11 Oct (32 to 45)
-      currentSlice = dailyRecords.slice(n - 14);
-      priorSlice = dailyRecords.slice(n - 28, n - 14);
-      periodLabel = 'Last 14 Days (12–25 Oct)';
-      priorLabel = 'Prior 14 Days (28 Sep–11 Oct)';
-      break;
-
-    case '30d':
-      // Last 30 days: 26 Sep to 25 Oct (30 to 59), prior 30 days: 27 Aug to 25 Sep (0 to 29)
-      currentSlice = dailyRecords.slice(n - 30);
-      priorSlice = dailyRecords.slice(0, 30);
-      periodLabel = 'Last 30 Days';
-      priorLabel = 'Prior 30 Days';
-      break;
-
-    case 'all':
-      // MoM History across all days
-      currentSlice = dailyRecords;
-      priorSlice = dailyRecords.slice(0, 30);
-      periodLabel = '60-Day History (27 Aug–25 Oct)';
-      priorLabel = 'Prior Period';
-      break;
-
-    case 'mtd':
-    default:
-      // Oct 1 to 25 (indices 35 to 59), Prior: Sep 1 to 25 (indices 5 to 29)
-      currentSlice = dailyRecords.slice(35, 60);
-      priorSlice = dailyRecords.slice(5, 30);
-      periodLabel = 'MTD Oct 1–25, 2026';
-      priorLabel = 'Sep 1–25, 2026';
-      break;
-  }
+  // Windows follow the newest date in the daily series (see utils/periods.ts)
+  const {
+    current: currentSlice,
+    prior: priorSlice,
+    periodLabel,
+    priorLabel,
+    isSingleDay,
+  } = resolvePeriod(period);
 
   // Channel extractor helper
   const extractChannelData = (slice: DailyRecord[]) => {
@@ -245,28 +204,28 @@ export function getFilteredMetrics(
         sales += r.amazonSales;
         adSpend += r.amazonBilledAds;
         orders += r.amazonOrders;
-        cogs += r.amazonOrders * cogsRate;
+        cogs += marketplaceCogs(r.amazonSales);
         shipping += 0;
         fees += r.amazonFees;
       } else if (channel === 'flipkart') {
         sales += r.flipkartSales;
         adSpend += r.flipkartAds;
         orders += r.flipkartOrders;
-        cogs += r.flipkartOrders * cogsRate;
+        cogs += marketplaceCogs(r.flipkartSales);
         shipping += 0;
         fees += r.flipkartSales * 0.22;
       } else if (channel === 'nykaa') {
         sales += r.nykaaSales;
         adSpend += r.nykaaAds;
         orders += r.nykaaOrders;
-        cogs += r.nykaaOrders * cogsRate;
+        cogs += marketplaceCogs(r.nykaaSales);
         shipping += 0;
         fees += r.nykaaSales * 0.25;
       } else if (channel === 'myntra') {
         sales += r.myntraSales;
         adSpend += r.myntraAds;
         orders += r.myntraOrders;
-        cogs += r.myntraOrders * cogsRate;
+        cogs += marketplaceCogs(r.myntraSales);
         shipping += 0;
         fees += r.myntraSales * 0.28;
       } else {
@@ -275,7 +234,7 @@ export function getFilteredMetrics(
         sales += (r.shopifyPreReturns + r.amazonSales);
         adSpend += (r.metaSpend + r.googleSpend + r.amazonBilledAds);
         orders += (r.shopifyOrders + r.amazonOrders);
-        cogs += (r.shopifyOrders * 1.3 + r.amazonOrders) * cogsRate;
+        cogs += r.shopifyOrders * 1.3 * cogsRate + marketplaceCogs(r.amazonSales);
         shipping += (r.shopifyOrders * 0.8) * shippingRate;
         fees += r.amazonFees;
       }

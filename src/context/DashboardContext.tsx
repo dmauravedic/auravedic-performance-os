@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { initialDashboardData, DashboardDataBundle, AmazonASINItem, UnitEconomicItem } from '../data/initialData';
+import { MARKETPLACE_COGS_PCT } from '../data/assumptions';
 
 export type TimePeriod = 'yesterday' | '7d' | '14d' | '30d' | 'mtd' | 'all';
 export type ChannelFilter = 'all' | 'shopify' | 'amazon' | 'flipkart' | 'nykaa' | 'myntra';
@@ -25,6 +26,9 @@ interface DashboardContextType {
   // Dynamic assumptions
   defaultCOGS: number;
   setDefaultCOGS: (val: number) => void;
+  /** COGS for marketplace channels (Amazon, Flipkart, Nykaa, Myntra), as a % of their sales. */
+  marketplaceCOGSPct: number;
+  setMarketplaceCOGSPct: (val: number) => void;
   flatShipping: number;
   setFlatShipping: (val: number) => void;
   monthlyRevenueTarget: number;
@@ -47,6 +51,7 @@ export const DashboardProvider: React.FC<{ children: ReactNode }> = ({ children 
 
   // Operational assumptions
   const [defaultCOGS, setDefaultCOGS] = useState<number>(125);
+  const [marketplaceCOGSPct, setMarketplaceCOGSPct] = useState<number>(MARKETPLACE_COGS_PCT.default);
   const [flatShipping, setFlatShipping] = useState<number>(65);
   const [monthlyRevenueTarget, setMonthlyRevenueTarget] = useState<number>(6500000); // ₹65L target
 
@@ -70,6 +75,7 @@ export const DashboardProvider: React.FC<{ children: ReactNode }> = ({ children 
   const resetToDefaults = () => {
     setData(initialDashboardData);
     setDefaultCOGS(125);
+    setMarketplaceCOGSPct(MARKETPLACE_COGS_PCT.default);
     setFlatShipping(65);
     setMonthlyRevenueTarget(6500000);
   };
@@ -89,6 +95,8 @@ export const DashboardProvider: React.FC<{ children: ReactNode }> = ({ children 
       setCurrentView,
       defaultCOGS,
       setDefaultCOGS,
+      marketplaceCOGSPct,
+      setMarketplaceCOGSPct,
       flatShipping,
       setFlatShipping,
       monthlyRevenueTarget,

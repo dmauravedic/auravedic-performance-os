@@ -59,12 +59,13 @@ export const ExecutiveSummaryView: React.FC = () => {
     setChannel,
     setCurrentView,
     defaultCOGS,
+    marketplaceCOGSPct,
     flatShipping,
   } = useDashboard();
 
   const { monthlyPerformance, marketplaceSummary } = data;
 
-  const metrics = getFilteredMetrics(period, channel, defaultCOGS, flatShipping, monthlyPerformance);
+  const metrics = getFilteredMetrics(period, channel, defaultCOGS, flatShipping, monthlyPerformance, marketplaceCOGSPct);
 
   const {
     periodLabel,
@@ -298,7 +299,7 @@ export const ExecutiveSummaryView: React.FC = () => {
         <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
           <SectionSourceBadge 
             source="Daily Time-Series (Shopify Gross-Discounts, Amazon Ordered Sales, Windsor Meta 5-Accounts & Google Ads)" 
-            pipeline="60-day daily series, calibrated to the handbook totals"
+            pipeline="Daily series, calibrated to the handbook totals"
             channel={channel}
           />
         </div>
