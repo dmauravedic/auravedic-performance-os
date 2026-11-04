@@ -48,10 +48,10 @@ export const SOURCE_ROWS: SourceRow[] = [
     group: 'Sales',
     name: 'Amazon sales',
     provides: 'Ordered product sales, units, order items',
-    origin: 'Windsor connector amazon_sp (Sales and Traffic by date)',
+    origin: 'Windsor API, connector amazon_sp (Sales and Traffic by date), pulled at each build',
     arrives: 'Automated',
     schedule: 'Daily. Amazon reports about a day behind; two days is normal',
-    today: 'Bundled snapshot to 25 Oct (landing tab amz_sales_date).',
+    today: 'Bundled snapshot to 25 Oct until the WINDSOR_API_KEY secret is set.',
     freshnessKey: 'amazonSales',
     usedOn: 'Executive, P&L, Marketplaces'
   },
@@ -114,10 +114,10 @@ export const SOURCE_ROWS: SourceRow[] = [
     group: 'Advertising',
     name: 'Meta Ads',
     provides: 'Spend, purchases and purchase value for 5 accounts (Admin excluded)',
-    origin: 'Windsor connector facebook',
+    origin: 'Windsor API, connector facebook, pulled at each build',
     arrives: 'Automated',
-    schedule: 'Daily at 04:51 IST. Ad-days over ₹50,000 per purchase are dropped as glitches',
-    today: 'Bundled snapshot to 25 Oct (landing tab meta_daily).',
+    schedule: 'Daily, at the 06:30 IST build. Ad-days over ₹50,000 per purchase are dropped as glitches',
+    today: 'Bundled snapshot to 25 Oct until the WINDSOR_API_KEY secret is set.',
     freshnessKey: 'meta',
     usedOn: 'Executive, P&L, Advertising'
   },
@@ -145,8 +145,8 @@ export const SOURCE_ROWS: SourceRow[] = [
   {
     group: 'Advertising',
     name: 'Amazon Ads (daily spend)',
-    provides: 'Daily Amazon ad spend, used as the ad cost in the P&L and on the ad pages',
-    origin: 'Windsor connector amazon_ads (landing tab amz_ads_daily)',
+    provides: 'Daily Amazon ad spend (Sponsored Products, Brands, Brands video and Display, added together), used as the ad cost in the P&L and on the ad pages',
+    origin: 'Windsor API, connector amazon_ads, one pull per ad type at each build',
     arrives: 'Automated',
     schedule: 'Daily. Amazon reports about a day behind; two days is normal',
     today: d =>

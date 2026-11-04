@@ -111,7 +111,7 @@ The period buttons follow the newest date in `daily` (`src/utils/periods.ts`): Y
 **One-time setup**
 1. In Google Cloud, create a project, enable the Google Sheets API, and create a service account. Download its JSON key.
 2. Share the sheet with the service account's email address, as a Viewer.
-3. In the GitHub repo, go to Settings > Secrets and variables > Actions > Secrets. Add `GOOGLE_SERVICE_ACCOUNT_JSON` (the whole key file) and `GOOGLE_SHEET_ID` (the long id in the sheet's URL), plus `SHAN_SHEET_ID` and `GOOGLE_ADS_SHEET_ID` if you use them (below). Use secrets, not variables: a variable's value is printed in the workflow log, which is public for a public repository.
+3. In the GitHub repo, go to Settings > Secrets and variables > Actions > Secrets. Add `GOOGLE_SERVICE_ACCOUNT_JSON` (the whole key file) and `GOOGLE_SHEET_ID` (the long id in the sheet's URL), plus `SHAN_SHEET_ID`, `GOOGLE_ADS_SHEET_ID` and `WINDSOR_API_KEY` if you use them (below). `WINDSOR_API_KEY` works on its own, without any of the Google secrets. Use secrets, not variables: a variable's value is printed in the workflow log, which is public for a public repository.
 4. Run the workflow once from the Actions tab to check it.
 
 If the sheet has bad data (a non-number in a number column, a missing column, a duplicate date), the sync fails with the tab, row and column, and the deploy stops, so the last good site stays up.
@@ -126,7 +126,13 @@ If the sheet has bad data (a non-number in a number column, a missing column, a 
 | `Myntra Ads` A1:I200 | The same for Myntra |
 | `Amazon Ads` A1:BD12, `FKT` A1:H70, `Purplle Ads` A1:F80, `Snapdeal Ads` A1:F80 (and Nykaa / Myntra Ads again) | The monthly "Marketplace ads" section on the Advertising page: spend, ad revenue, ROAS and TACOS, last 24 reported months each. A marketplace with no recent report is flagged. |
 
-**Windsor.ai exports** write straight into the feed workbook, one tab each, and replace the built-in daily figures for the source they cover. Set them up in Windsor's own dashboard (destination Google Sheets, this workbook, the tab name below, daily at 06:00 IST, last 90 days). The workbook's README tab lists the exact fields to select.
+**Windsor.ai, the direct way (recommended).** Add a repository secret `WINDSOR_API_KEY` (Windsor dashboard, API key). Each build then asks Windsor's API for Meta, Amazon sales and Amazon Ads (`scripts/windsor_api.py`), from the first day of the series to yesterday. No sheet, export or service account is needed for these three, and they win over the same tabs in the feed workbook. The key is never printed.
+
+- **Amazon Ads is pulled once per ad type** (Sponsored Products, Sponsored Brands, Sponsored Brands video, Sponsored Display) and added up. Windsor keeps each type in its own report and will not combine them in one request, so a single sheet export could only ever carry one type.
+- **Windsor can be slow** to prepare an Amazon Ads pull (15 minutes or more when its cache is cold; turning Windsor's cache back on for `amazon_ads` helps). The sync gives all Windsor pulls 30 minutes in total. A source that is not ready by then is skipped with a warning and keeps its bundled data; if any Amazon ad type is not ready, Amazon Ads is skipped as a whole so a part-sum never replaces the estimate. A refused key or a malformed reply fails the run, so the last good site stays up.
+- Test without a key or network: `python scripts/sync_from_sheet.py --windsor-fixture FILE --out-dir ./out` reads saved replies (`{"facebook": [rows], "amazon_sp": [rows], "amazon_ads": [rows]}`).
+
+**Windsor.ai exports into the workbook (the older way)** write into the feed workbook, one tab each, and replace the built-in daily figures for the source they cover. They are only read for a source the API did not supply (and `shop_daily` always comes this way for now). Set them up in Windsor's own dashboard (destination Google Sheets, this workbook, the tab name below, daily at 06:00 IST, last 90 days). The workbook's README tab lists the exact fields to select. An `amz_ads_daily` export carries one Amazon ad type only.
 
 | Tab | Windsor connector | Overwrites |
 |---|---|---|

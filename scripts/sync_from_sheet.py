@@ -16,9 +16,11 @@ Sheet layout: one tab per table, header names in row 1 (extra columns are ignore
   freshness      -> freshness            key, value  (keys like metaAds, assumptions.defaultCOGS)
   daily          -> src/data/dailyData.ts  one row per day, columns as in scripts/data_io.py
 
-Windsor.ai exports land in their own tabs (see scripts/windsor_daily.py) and are merged over the
-daily series: meta_daily, amz_sales_date, amz_ads_daily (Amazon Ads spend, which replaces the
-estimate in amazonBilledAds), shop_daily.
+Windsor.ai data is merged over the daily series: meta_daily, amz_sales_date, amz_ads_daily (Amazon
+Ads spend, which replaces the estimate in amazonBilledAds), shop_daily (see scripts/windsor_daily.py).
+With WINDSOR_API_KEY set, Meta, Amazon sales and Amazon Ads (every ad type, summed) are pulled from
+Windsor's API directly (scripts/windsor_api.py) and win over the same tabs in the feed workbook.
+Without it, those tabs are read from the workbook as before.
 
 Google Ads is read from the `_GoogleAds_Daily` tab of a separate sheet (GOOGLE_ADS_SHEET_ID), one range
 only (A1:Z6000), and merged over the same daily series. If GOOGLE_ADS_SHEET_ID is not set, the same tab
@@ -53,8 +55,12 @@ Environment (Google mode)
   GOOGLE_SHEET_ID               the dashboard feed workbook
   SHAN_SHEET_ID                 Shan's report sheet (optional)
   GOOGLE_ADS_SHEET_ID           the sheet that holds the _GoogleAds_Daily tab (optional)
-Sheet ids are never printed, because the workflow log of a public repository is public.
-With neither sheet configured, the script exits cleanly and the build keeps the bundled snapshot.
+  WINDSOR_API_KEY               Windsor.ai API key: Meta, Amazon sales, Amazon Ads (optional, no sheet needed)
+Sheet ids and the Windsor key are never printed, because the workflow log of a public repository is public.
+With nothing configured, the script exits cleanly and the build keeps the bundled snapshot.
+
+  python scripts/sync_from_sheet.py --windsor-fixture FILE --dry-run   # Windsor API mode on saved
+                                    # replies ({connector: [rows]}), no key or network needed
 """
 
 import argparse
@@ -69,6 +75,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from data_io import DAILY_FIELDS, SyncError, parse_number, read_daily_ts, write_daily_ts  # noqa: E402
 from windsor_daily import FRESHNESS_KEYS, GOOGLE_TAB, WINDSOR_TABS, merge_into_daily, parse_windsor  # noqa: E402
 from marketplace_ads import ADS_RANGES, build_marketplace_ads  # noqa: E402
+from windsor_api import read_windsor_api  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT, "src", "data")
@@ -631,6 +638,20 @@ def apply(tables, shan_tables, google_rows, out_dir, dry_run):
     print(f"Wrote data files to {out_dir}")
 
 
+def fixture_fetcher(path):
+    """A stand-in for windsor_api.fetch that answers from a saved file: {connector: [rows]}. Each
+    request gets the rows that carry every field it asked for (Amazon Ads keeps one report per ad
+    type, so its rows are told apart by their cost field)."""
+    with open(path, encoding="utf-8") as f:
+        saved = json.load(f)
+
+    def fetch(connector, fields, date_from, date_to, key, deadline=None):
+        rows = [r for r in saved.get(connector, []) if all(fl in r for fl in fields)]
+        return [{fl: r[fl] for fl in fields} for r in rows if date_from <= str(r["date"])[:10] <= date_to]
+
+    return fetch
+
+
 def main():
     ap = argparse.ArgumentParser(description="Sync dashboard data from a Google Sheet or CSV exports.")
     ap.add_argument("--csv-dir", help="read <tab>.csv files from this folder instead of Google")
@@ -639,6 +660,8 @@ def main():
     ap.add_argument("--include-daily", action="store_true", help="with --export-csv, include the daily rows")
     ap.add_argument("--out-dir", default=DATA_DIR, help="where to write the data files (default src/data)")
     ap.add_argument("--dry-run", action="store_true", help="validate and report without writing")
+    ap.add_argument("--windsor-fixture", metavar="FILE",
+                    help="Windsor API mode on saved replies ({connector: [rows]}) instead of the live API (testing)")
     args = ap.parse_args()
 
     try:
@@ -668,9 +691,24 @@ def main():
             print("Reading the Google Ads daily tab (one range, no other tab)")
             google_rows = read_google_ads_sheet(gads_id or shan_id, creds, required=bool(gads_id))
 
+        windsor_key = os.environ.get("WINDSOR_API_KEY", "").strip()
+        if windsor_key or args.windsor_fixture:
+            # Pull from the start of the series: only days already in it are overwritten
+            start = read_daily_ts(os.path.join(DATA_DIR, "dailyData.ts"))[0]["date"]
+            if args.windsor_fixture:
+                print(f"Reading Windsor replies from {args.windsor_fixture} (fixture, no network)")
+                windsor_tables, windsor_notes = read_windsor_api("", start, fetcher=fixture_fetcher(args.windsor_fixture))
+            else:
+                print(f"Reading Meta, Amazon sales and Amazon Ads from the Windsor API (from {start})")
+                windsor_tables, windsor_notes = read_windsor_api(windsor_key, start)
+            for note in windsor_notes:
+                print(f"  {note}")
+            # The API is the source of record for these tabs, so it wins over copies in the workbook
+            tables = {**(tables or {}), **windsor_tables}
+
         if tables is None and shan_tables is None and google_rows is None:
-            print("Google Sheet sync is not configured (GOOGLE_SERVICE_ACCOUNT_JSON plus GOOGLE_SHEET_ID,")
-            print("SHAN_SHEET_ID and / or GOOGLE_ADS_SHEET_ID). Keeping the bundled snapshot.")
+            print("Data sync is not configured (WINDSOR_API_KEY, or GOOGLE_SERVICE_ACCOUNT_JSON plus")
+            print("GOOGLE_SHEET_ID, SHAN_SHEET_ID and / or GOOGLE_ADS_SHEET_ID). Keeping the bundled snapshot.")
             return 0
         apply(tables or {}, shan_tables, google_rows, args.out_dir, args.dry_run)
         return 0
