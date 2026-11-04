@@ -213,7 +213,7 @@ export const SOURCE_ROWS: SourceRow[] = [
     origin: 'Nightly closing screenshots posted in Slack #inventory-wh-movement, read by Claude scheduled task #7',
     arrives: 'Manual',
     schedule: 'Monday to Saturday at 23:00 IST',
-    today: "9 hero products, real counts from the stock desk, copied into the repo each morning (data/warehouse_stock.csv). Dated by the older of the two sheets. Daily run rates are still typed-in estimates, so days of cover are rough.",
+    today: "9 hero products: real counts and daily demand from the stock desk (Shopify units with combos split, plus marketplace demand the stock desk infers from stock movements), copied into the repo each morning (data/warehouse_stock.csv). Dated by the older of the two sheets.",
     freshnessKey: 'warehouse',
     usedOn: 'Warehouse & Stock Operations'
   },
