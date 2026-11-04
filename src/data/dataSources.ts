@@ -69,10 +69,10 @@ export const SOURCE_ROWS: SourceRow[] = [
     group: 'Sales',
     name: 'Amazon settlement',
     provides: 'Fees, refunds, promotions, billed advertising',
-    origin: 'Windsor connector amazon_sp (Settlement v2, about 90 days of history)',
+    origin: 'Windsor API, connector amazon_sp (Settlement v2), pulled at each build',
     arrives: 'Automated',
-    schedule: 'Daily, 1–2 days after the order day',
-    today: 'Day-level rows exist for 13–25 Oct only. Earlier months use flat-rate estimates.',
+    schedule: 'Daily, by posted date (1–2 days after the order day)',
+    today: 'Real refunds and fees per posted day wherever the report covers it; days it does not cover use the flat rates. Fees land on posting days, so single days swing; periods even out.',
     freshnessKey: 'amazonSettlement',
     usedOn: 'P&L, Marketplaces, Advertising'
   },
@@ -213,7 +213,7 @@ export const SOURCE_ROWS: SourceRow[] = [
     origin: 'Nightly closing screenshots posted in Slack #inventory-wh-movement, read by Claude scheduled task #7',
     arrives: 'Manual',
     schedule: 'Monday to Saturday at 23:00 IST',
-    today: '9 hero products, held as figures in the bundle. They are not read from the stock desk automatically yet.',
+    today: "9 hero products, real counts from the stock desk, copied into the repo each morning (data/warehouse_stock.csv). Dated by the older of the two sheets. Daily run rates are still typed-in estimates, so days of cover are rough.",
     freshnessKey: 'warehouse',
     usedOn: 'Warehouse & Stock Operations'
   },

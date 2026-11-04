@@ -4,7 +4,9 @@ import { useDashboard } from '../../context/DashboardContext';
 import type { LatencySourceKey } from '../../data/channelLatency';
 import { formatAge, formatAsOf, groupFreshness, useSourceFreshness } from '../../utils/freshness';
 
-const CORE: LatencySourceKey[] = ['shopify', 'meta', 'google', 'amazonSales', 'amazonSettlement', 'amazonAds', 'flipkart', 'warehouse'];
+// Flipkart, Nykaa and Myntra have no daily feed: the freshness strip names them once as the standing
+// gap, so they do not raise this banner. Everything here is fed daily and is flagged if it falls behind.
+const CORE: LatencySourceKey[] = ['shopify', 'meta', 'google', 'amazonSales', 'amazonSettlement', 'amazonAds', 'warehouse'];
 
 /**
  * Appears only when a source is past its accepted delay. A source that is behind by design

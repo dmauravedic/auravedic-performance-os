@@ -39,7 +39,7 @@ import re
 
 from data_io import DAILY_FIELDS, SyncError, parse_number
 
-WINDSOR_TABS = ["meta_daily", "amz_sales_date", "amz_ads_daily", "shop_daily"]
+WINDSOR_TABS = ["meta_daily", "amz_sales_date", "amz_ads_daily", "amz_settlement", "shop_daily"]
 GOOGLE_TAB = "google_daily"  # the key Google Ads rows are filed under; not a Windsor tab any more
 
 # Amazon days without settlement rows are estimated at the handbook rates (same as the seed series)
@@ -240,6 +240,51 @@ def amz_ads_daily(table):
     return out, f"amz_ads_daily: {len(out)} days; {processed - len(kept)} repeated rows ignored; replaces the estimated Amazon ad spend"
 
 
+def amz_settlement(table):
+    """Amazon settlement lines (Windsor `amazon_sp`, settlement report v2), summed per posted date into
+    refunds, fees and billed advertising. These replace the flat-rate estimates for every date the
+    report covers. Definitions (all as positive rupees):
+      refunds  = principal refunded to customers (Refund, ItemPrice, Principal);
+      fees     = everything Amazon charges for selling: ItemFees and fee adjustments (commission,
+                 closing, FBA pick-pack and weight handling, shipping chargeback, technology fee,
+                 with their GST), net of fees Amazon returns on refunds, plus other-transaction fees
+                 (advisory fee, inbound transport) and their GST;
+      ads      = Cost of Advertising (used only for days without the daily Amazon Ads export).
+    Promotions, taxes collected (TCS/TDS) and reimbursements are not fees and are left out."""
+    header, rows = table_body(table)
+    if not rows:
+        return None, None
+    c = dict(
+        date=find_col(header, ["posteddate", "date"]),
+        ttype=find_col(header, ["transactiontype"]),
+        atype=find_col(header, ["amounttype"]),
+        desc=find_col(header, ["amountdescription"]),
+        amount=find_col(header, ["amount"]),
+    )
+    need("amz_settlement", header, **{"posted date": c["date"], "transaction type": c["ttype"], "amount type": c["atype"],
+                                       "amount description": c["desc"], "amount": c["amount"]})
+    agg = {}
+    for line, row in rows:
+        raw_date = str(at(row, c["date"])).strip()
+        if not raw_date:
+            continue
+        date = parse_date(raw_date, f"amz_settlement row {line}")
+        ttype, atype, desc = (str(at(row, c[k])).strip().lower() for k in ("ttype", "atype", "desc"))
+        amount = metric(row, c["amount"], "amz_settlement", line, "amount")
+        a = agg.setdefault(date, {"refunds": 0.0, "fees": 0.0, "ads": 0.0})
+        if desc == "cost of advertising" or atype == "cost of advertising":
+            a["ads"] -= amount
+        elif ttype == "refund" and atype == "itemprice" and desc == "principal":
+            a["refunds"] -= amount
+        elif atype in ("itemfees", "item fee adjustment"):
+            a["fees"] -= amount
+        elif (ttype == "other-transaction" or atype == "other-transaction") and "reimbursement" not in atype and "reimbursement" not in desc:
+            a["fees"] -= amount
+    out = {d: {"_settleRefunds": round(v["refunds"], 2), "_settleFees": round(v["fees"], 2), "_settleAds": round(v["ads"], 2)}
+           for d, v in agg.items()}
+    return out, f"amz_settlement: {len(out)} posted days; refunds and fees replace the flat-rate estimates for those days"
+
+
 def amz_sales_date(table):
     header, rows = table_body(table)
     if not rows:
@@ -302,6 +347,7 @@ def parse_windsor(tables, data):
         "google": lambda: google_daily(tables.get(GOOGLE_TAB)),
         "amazon": lambda: amz_sales_date(tables.get("amz_sales_date")),
         "amazonads": lambda: amz_ads_daily(tables.get("amz_ads_daily")),
+        "settlement": lambda: amz_settlement(tables.get("amz_settlement")),
         "shopify": lambda: shop_daily(tables.get("shop_daily")),
     }
     sources, notes = {}, []
@@ -363,6 +409,14 @@ def merge_into_daily(base_rows, sources):
                 r["amazonFees"] = round(r["amazonSales"] * AMAZON_FEE_RATE, 2)
                 if not own_ads:
                     r["amazonBilledAds"] = round(r["amazonSales"] * AMAZON_ADS_RATE, 2)
+        if "settlement" in names:
+            # Real settlement for the day beats the estimate; Amazon Ads' own daily spend still wins
+            # over the advertising Amazon billed that day (billing lands in lumps, not by spend day)
+            r["amazonRefunds"] = r.pop("_settleRefunds")
+            r["amazonFees"] = r.pop("_settleFees")
+            settle_ads = r.pop("_settleAds")
+            if "amazonads" not in names:
+                r["amazonBilledAds"] = settle_ads
         if date in added:
             r["missing"] = [s for s in REPORTED_SOURCES if FED_BY.get(s) not in names]
             if "amazon" in r["missing"]:
@@ -405,5 +459,6 @@ FRESHNESS_KEYS = {
     "google": "googleAds",
     "amazon": "amazonSales",
     "amazonads": "amazonAds",
+    "settlement": "amazonSettlement",
     "shopify": "shopifySales",
 }

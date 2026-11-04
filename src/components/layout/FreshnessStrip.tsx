@@ -1,6 +1,6 @@
 import React from 'react';
 import { useDashboard } from '../../context/DashboardContext';
-import { Clock, CheckCircle2, AlertTriangle, Info, HelpCircle } from 'lucide-react';
+import { Clock, CheckCircle2, AlertTriangle, Info, HelpCircle, MinusCircle } from 'lucide-react';
 import type { LatencySourceKey } from '../../data/channelLatency';
 import { formatAsOf, usePreviewingNow, useSourceFreshness, type FreshnessStatus } from '../../utils/freshness';
 
@@ -11,9 +11,11 @@ const ITEMS: { name: string; key: LatencySourceKey }[] = [
   { name: 'Amazon SP-API', key: 'amazonSales' },
   { name: 'Amazon Settle', key: 'amazonSettlement' },
   { name: 'Amazon Ads', key: 'amazonAds' },
-  { name: 'Flipkart Hub', key: 'flipkart' },
   { name: 'Warehouse Desk', key: 'warehouse' }
 ];
+
+/** Channels with no daily feed: the one standing gap, named once instead of flagged as stale. */
+const NO_DAILY_FEED = 'Flipkart, Nykaa, Myntra';
 
 const ICON: Partial<Record<FreshnessStatus, React.ReactNode>> = {
   fresh: <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" aria-hidden />,
@@ -50,6 +52,14 @@ export const FreshnessStrip: React.FC = () => {
             </div>
           );
         })}
+        <div
+          className="flex items-center gap-1.5 whitespace-nowrap"
+          title="These marketplaces have no daily feed. Their days are marked 'not reported yet' and left out of the figures; their monthly rows come from the report sheet."
+        >
+          <MinusCircle className="w-3 h-3 text-amber-400 shrink-0" aria-hidden />
+          <span className="text-slate-200 font-medium">{NO_DAILY_FEED}:</span>
+          <span className="text-amber-300">data gap (no daily feed)</span>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 ml-auto shrink-0">

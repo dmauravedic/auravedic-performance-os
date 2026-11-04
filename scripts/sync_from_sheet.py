@@ -83,6 +83,7 @@ from windsor_api import read_windsor_api  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT, "src", "data")
 SHOPIFY_FILE = os.path.join(ROOT, "data", "shopify_daily.csv")
+WAREHOUSE_FILE = os.path.join(ROOT, "data", "warehouse_stock.csv")
 
 STR, NUM = "str", "num"
 
@@ -617,6 +618,9 @@ def apply(tables, shan_tables, google_rows, out_dir, dry_run):
     if daily:
         print(f"  daily: {len(daily)} days ({daily[0]['date']} to {daily[-1]['date']}) -> dailyData.ts")
 
+    if tables.get("warehouse_stock"):
+        print(f"  {apply_warehouse(data, tables['warehouse_stock'])}")
+
     if shan_tables:
         notes = apply_shan(data, shan_tables)
         for note in notes:
@@ -642,6 +646,51 @@ def apply(tables, shan_tables, google_rows, out_dir, dry_run):
     print(f"Wrote data files to {out_dir}")
 
 
+def apply_warehouse(data, table):
+    """Real stock counts from data/warehouse_stock.csv (key, cbe_d2c, cbe_reserve, mumbai, cbe_asof,
+    mumbai_asof) over the products the dashboard tracks. Daily run rates stay as they are (typed in:
+    see the brief); days of cover and the reorder flag are worked out again from the real stock. The
+    warehouse's last-updated time is the OLDER of the two sheets, so a warehouse whose sheet was not
+    posted shows as stale instead of hiding behind the other one."""
+    header = [squash_name(h) for h in table[0]] if table else []
+    need = ["key", "cbe_d2c", "cbe_reserve", "mumbai", "cbe_asof", "mumbai_asof"]
+    missing = [n for n in need if n not in header]
+    if missing:
+        raise SyncError(f"data/warehouse_stock.csv: missing column(s) {', '.join(missing)}")
+    idx = {n: header.index(n) for n in need}
+    rows = {}
+    for line, row in enumerate(table[1:], start=2):
+        if not any(str(c).strip() for c in row):
+            continue
+        key = str(row[idx["key"]]).strip()
+        try:
+            d2c, rsrv, mum = (int(float(row[idx[n]])) for n in ("cbe_d2c", "cbe_reserve", "mumbai"))
+        except ValueError:
+            raise SyncError(f"data/warehouse_stock.csv row {line}: stock must be numbers")
+        rows[key] = (d2c, rsrv, mum, row[idx["cbe_asof"]].strip(), row[idx["mumbai_asof"]].strip())
+    updated, asof = 0, []
+    for item in data.get("warehouseStock", []):
+        r = rows.get(item["key"])
+        if not r:
+            continue
+        d2c, rsrv, mum, cbe_asof, mum_asof = r
+        item.update(cbeD2CAvl=d2c, cbeBulkReserve=rsrv, cbeSIH=d2c + rsrv, mumbaiSIH=mum, totalStock=d2c + rsrv + mum)
+        rate = item.get("dailyRunRate") or 0
+        item["daysOfCover"] = round(item["totalStock"] / rate, 1) if rate > 0 else 999
+        item["reorderNeeded"] = item["daysOfCover"] < 14
+        updated += 1
+        asof += [cbe_asof, mum_asof]
+    if not updated:
+        return "warehouse_stock: no tracked product found in the file, keeping the bundled stock"
+    oldest = min(d for d in asof if d)
+    data["freshness"]["warehouseStock"] = f"{oldest} 23:00 IST"
+    return f"warehouse_stock: {updated} products updated; Coimbatore as of {max(r[3] for r in rows.values())}, Mumbai as of {max(r[4] for r in rows.values())}"
+
+
+def squash_name(text):
+    return str(text).strip().lower()
+
+
 def fixture_fetcher(path):
     """A stand-in for windsor_api.fetch that answers from a saved file: {connector: [rows]}. Each
     request gets the rows that carry every field it asked for (Amazon Ads keeps one report per ad
@@ -651,7 +700,8 @@ def fixture_fetcher(path):
 
     def fetch(connector, fields, date_from, date_to, key, deadline=None):
         rows = [r for r in saved.get(connector, []) if all(fl in r for fl in fields)]
-        return [{fl: r[fl] for fl in fields} for r in rows if date_from <= str(r["date"])[:10] <= date_to]
+        # Rows without a plain `date` (settlement lines carry a posted date) are not filtered by date
+        return [{fl: r[fl] for fl in fields} for r in rows if "date" not in r or date_from <= str(r["date"])[:10] <= date_to]
 
     return fetch
 
@@ -718,6 +768,12 @@ def main():
                 shop_rows = list(csv.reader(f))
             print(f"Reading Shopify daily totals from data/shopify_daily.csv ({max(len(shop_rows) - 1, 0)} days)")
             tables = {**(tables or {}), "shop_daily": shop_rows}
+
+        # Warehouse stock from the nightly stock desk (Coimbatore and Mumbai sheets posted in Slack),
+        # copied into the repo by the same morning task
+        if os.path.exists(WAREHOUSE_FILE):
+            with open(WAREHOUSE_FILE, encoding="utf-8", newline="") as f:
+                tables = {**(tables or {}), "warehouse_stock": list(csv.reader(f))}
 
         if tables is None and shan_tables is None and google_rows is None:
             print("Data sync is not configured (WINDSOR_API_KEY, or GOOGLE_SERVICE_ACCOUNT_JSON plus")
