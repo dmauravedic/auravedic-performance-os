@@ -5,6 +5,7 @@ import { defaultCardSources, type LatencySourceKey } from '../../data/channelLat
 import { useSourceFreshness, worstOf } from '../../utils/freshness';
 import { CardSource } from './CardSource';
 import { FreshnessLine } from './FreshnessChip';
+import type { Gap } from '../../utils/coverage';
 
 interface MetricCardProps {
   title: string;
@@ -20,6 +21,10 @@ interface MetricCardProps {
   footnote?: string;
   /** Sources behind the figure, for the last-updated line. Defaults to the page's and channel's; false hides it. */
   sources?: LatencySourceKey[] | false;
+  /** Days the figure leaves out because a source has not reported them. With no day left the value
+   *  reads "Not reported yet"; with some, the value stands for the reported days and the % change and
+   *  prior value are hidden (a part-period against a full one would mislead). */
+  gap?: Gap | null;
   className?: string;
 }
 
@@ -36,8 +41,19 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   icon,
   footnote,
   sources,
+  gap,
   className = ''
 }) => {
+  if (gap) {
+    if (gap.whole) {
+      // Nothing to count: the lines that break the value down would only show zeros
+      value = 'Not reported yet';
+      subtitle = undefined;
+      footnote = undefined;
+    }
+    deltaText = undefined;
+    priorValue = undefined;
+  }
   const { currentView, channel } = useDashboard();
   const freshnessSources = sources === false ? [] : sources ?? defaultCardSources(currentView, channel);
   const freshness = useSourceFreshness(freshnessSources);
@@ -68,7 +84,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
       </div>
 
       <div className="flex items-baseline justify-between gap-3 mt-1">
-        <div className="text-2xl font-bold tracking-tight text-slate-900 font-sans">
+        <div className={`font-bold tracking-tight font-sans ${gap?.whole ? 'text-lg text-slate-400' : 'text-2xl text-slate-900'}`}>
           {value}
         </div>
 
@@ -89,6 +105,14 @@ export const MetricCard: React.FC<MetricCardProps> = ({
           </div>
         )}
       </div>
+
+      {gap && (
+        <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 mt-1.5">
+          {gap.whole
+            ? 'No day in this period has every figure yet'
+            : `Reported days only (${gap.countedDays} of ${gap.totalDays}). No change vs prior shown.`}
+        </div>
+      )}
 
       {priorValue && (
         <div className="text-xs text-slate-500 mt-1">

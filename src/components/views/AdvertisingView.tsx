@@ -5,6 +5,8 @@ import { ViewFilterBar } from '../common/ViewFilterBar';
 import { SectionSourceBadge } from '../common/SectionSourceBadge';
 import { formatINR, formatROAS, formatNumber } from '../../utils/formatters';
 import { resolvePeriod } from '../../utils/periods';
+import { gapFor, reportedDays, type ReportedSource } from '../../utils/coverage';
+import { GapNotice } from '../common/GapNotice';
 import { adSetDays, AD_SETS } from '../../data/adLevelData';
 import {
   breakEven,
@@ -37,7 +39,12 @@ export const AdvertisingView: React.FC = () => {
   const { data, period, setPeriod, defaultCOGS, flatShipping } = useDashboard();
   const { metaAccounts, monthlyPerformance } = data;
 
-  const { current: slice, periodLabel } = resolvePeriod(period);
+  const { current: periodDays, periodLabel } = resolvePeriod(period);
+  // The page sets spend against Shopify and Amazon sales, so it counts only days where all of them are
+  // reported (see utils/coverage.ts); the rest are named in the notice and on the cards.
+  const needs: ReportedSource[] = ['shopify', 'amazon', 'meta', 'google'];
+  const gap = gapFor(periodDays, needs);
+  const slice = reportedDays(periodDays, needs);
 
   const sum = (pick: (r: (typeof slice)[number]) => number) => slice.reduce((a, r) => a + pick(r), 0);
   const metaSpend = sum(r => r.metaSpend);
@@ -88,6 +95,8 @@ export const AdvertisingView: React.FC = () => {
         }
       />
 
+      <GapNotice gap={gap} />
+
       {/* Headline spend by platform */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
@@ -98,6 +107,7 @@ export const AdvertisingView: React.FC = () => {
           badgeText="Meta Ads"
           badgeVariant="primary"
           footnote={`Purchase ROAS: ${formatROAS(metaRoas)}`}
+          gap={gap}
         />
 
         <MetricCard
@@ -108,6 +118,7 @@ export const AdvertisingView: React.FC = () => {
           badgeText="Google Ads"
           badgeVariant="neutral"
           footnote={`Conversion ROAS: ${formatROAS(googleRoas)}`}
+          gap={gap}
         />
 
         <MetricCard
@@ -122,6 +133,7 @@ export const AdvertisingView: React.FC = () => {
               ? `~${formatINR(amazonAds / slice.length, true)} / day from the daily Amazon Ads export`
               : `~${formatINR(amazonAds / slice.length, true)} / day in settlements (pre-13 Oct estimated)`
           }
+          gap={gap}
         />
 
         <MetricCard
@@ -132,6 +144,7 @@ export const AdvertisingView: React.FC = () => {
           badgeText="Flipkart Ads"
           badgeVariant="saffron"
           footnote="Ad sales: ~3.52x ROI (weekly report)"
+          gap={gap}
         />
       </div>
 
@@ -144,6 +157,7 @@ export const AdvertisingView: React.FC = () => {
           subtitle="Meta + Google + Amazon + Flipkart ads"
           badgeText="Spend"
           badgeVariant="neutral"
+          gap={gap}
         />
 
         <MetricCard
@@ -153,6 +167,7 @@ export const AdvertisingView: React.FC = () => {
           badgeText="Efficiency"
           badgeVariant="success"
           footnote="Flipkart is excluded, as in the Executive Summary"
+          gap={gap}
         />
 
         <MetricCard
@@ -163,6 +178,7 @@ export const AdvertisingView: React.FC = () => {
           badgeText="Shopify"
           badgeVariant="warning"
           footnote="Before returns and COD fees; moves with the P&L assumptions"
+          gap={gap}
         />
 
         <MetricCard
@@ -173,6 +189,7 @@ export const AdvertisingView: React.FC = () => {
           badgeText="Attribution"
           badgeVariant={overclaim > 1.1 ? 'danger' : 'neutral'}
           footnote="Above 1.0x means overlapping attribution"
+          gap={gap}
         />
       </div>
 

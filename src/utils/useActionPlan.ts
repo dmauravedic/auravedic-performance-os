@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { useDashboard } from '../context/DashboardContext';
 import { buildActionPlan, type ActionPlan } from './actions';
 import { useNow } from './freshness';
-import { resolvePeriod } from './periods';
+import { dailyRecords } from '../data/dailyData';
+import { lastReportedDays } from './coverage';
 
 /** The action plan for the dashboard's current data, assumptions and clock. */
 export function useActionPlan(): ActionPlan {
@@ -12,7 +13,11 @@ export function useActionPlan(): ActionPlan {
     () =>
       buildActionPlan({
         data,
-        slice: resolvePeriod('7d').current,
+        // The newest 7 days the store's sales and ads are all reported for: the rules weigh spend
+        // against Shopify sales, so a day without one of them would read as a collapse. When those days
+        // are old, the cards already carry the "Old data" note from the freshness checks.
+        slice: lastReportedDays(dailyRecords, ['shopify', 'meta', 'google'], 7),
+        recent: dailyRecords.slice(-14),
         now,
         cogsPerUnit: defaultCOGS,
         shippingPerOrder: flatShipping,

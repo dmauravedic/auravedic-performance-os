@@ -22,10 +22,12 @@ lists what was found. Defences against the usual traps:
   - the handbook glitch rule drops a Meta row whose purchase value per purchase exceeds Rs 50,000;
   - if an export appends instead of replacing, repeated rows for the same key keep only the last copy.
 
-A day is only overwritten where it already exists in the series. Days after the end of the series are
-reported but not added: a new day needs columns these exports do not supply (Flipkart, Nykaa and Myntra
-sales, Amazon settlement), so extend the series by adding the day to the daily tab. The app's periods
-follow the newest date in the series, so they roll forward as soon as the day is there.
+Days already in the series are overwritten. Days after the end of the series that any source covers are
+added as new days: the sources that have the day fill their fields, and every source that does not is
+listed in the row's `missing` field (its numbers stay 0, and the app shows them as "not reported yet",
+never as zero). Flipkart, Nykaa and Myntra have no daily feed, so they are always missing on new days.
+Amazon refunds, fees and (without an Amazon Ads row) billed ads on a new day are estimated at the
+handbook rates, as for any day without settlement rows. The app's periods follow the newest date.
 
 Amazon Ads spend replaces the flat-rate / settlement estimate in `amazonBilledAds` for every day the
 export covers, so the P&L and the ad pages use what Amazon Ads reports. Total ad spend and MER keep
@@ -35,7 +37,7 @@ meaning Meta + Google.
 import datetime
 import re
 
-from data_io import SyncError, parse_number
+from data_io import DAILY_FIELDS, SyncError, parse_number
 
 WINDSOR_TABS = ["meta_daily", "amz_sales_date", "amz_ads_daily", "shop_daily"]
 GOOGLE_TAB = "google_daily"  # the key Google Ads rows are filed under; not a Windsor tab any more
@@ -311,18 +313,31 @@ def parse_windsor(tables, data):
     return sources, notes
 
 
+# Daily sources the app checks for each day, and which merge source fills each of them
+REPORTED_SOURCES = ["shopify", "amazon", "flipkart", "nykaa", "myntra", "meta", "google"]
+FED_BY = {"shopify": "shopify", "amazon": "amazon", "meta": "meta", "google": "google"}  # the rest have no daily feed
+
+
+def blank_day(date):
+    return {name: (date if name == "date" else 0) for name, _ in DAILY_FIELDS}
+
+
 def merge_into_daily(base_rows, sources):
-    """Overwrite the columns each source supplies, for days already in the series."""
+    """Overwrite the columns each source supplies for days already in the series, and add the days
+    after its end that any source covers, with the sources that do not cover them listed in `missing`."""
     rows = {r["date"]: dict(r) for r in base_rows}
+    end = max(rows)
     touched = {}
-    beyond = set()
     old_sales = {}
+    added = set()
     for name, agg in sources.items():
         for date, fields in agg.items():
             row = rows.get(date)
             if row is None:
-                beyond.add(date)
-                continue
+                if date < end:
+                    continue  # before the series or a hole in it: not a new day
+                row = rows[date] = blank_day(date)
+                added.add(date)
             if name == "amazon":
                 old_sales[date] = row["amazonSales"]
             row.update(fields)
@@ -348,17 +363,33 @@ def merge_into_daily(base_rows, sources):
                 r["amazonFees"] = round(r["amazonSales"] * AMAZON_FEE_RATE, 2)
                 if not own_ads:
                     r["amazonBilledAds"] = round(r["amazonSales"] * AMAZON_ADS_RATE, 2)
+        if date in added:
+            r["missing"] = [s for s in REPORTED_SOURCES if FED_BY.get(s) not in names]
+            if "amazon" in r["missing"]:
+                r["amazonBilledAds"] = 0  # Amazon Ads alone, without sales, is not a reported Amazon day
         r["totalAdsIncluded"] = round(r["metaSpend"] + r["googleSpend"], 2)
         r["totalSales"] = round(r["shopifyPreReturns"] + r["amazonSales"], 2)
         r["salesPerRupeeAd"] = round(r["totalSales"] / r["totalAdsIncluded"], 2) if r["totalAdsIncluded"] > 0 else 0
 
+    # A new day needs at least one source the app reports on (Amazon Ads alone, ahead of Amazon's
+    # sales, does not make a day)
+    for date in [d for d in added if len(rows[d]["missing"]) == len(REPORTED_SOURCES)]:
+        del rows[date]
+        del touched[date]
+        added.discard(date)
+
     merged = [rows[d] for d in sorted(rows)]
-    ahead = sorted(d for d in beyond if d > merged[-1]["date"])
-    notes = [f"daily: {len(touched)} of {len(merged)} days overwritten from the exports ({', '.join(sorted(sources))})"]
-    if ahead:
+    old = len(touched) - len(added)
+    notes = [f"daily: {old} of {len(base_rows)} days overwritten from the exports ({', '.join(sorted(sources))})"]
+    if added:
+        new = sorted(added)
+        gaps = {}
+        for d in new:
+            for s in rows[d]["missing"]:
+                gaps.setdefault(s, []).append(d)
         notes.append(
-            f"daily: {len(ahead)} day(s) after {merged[-1]['date']} ({ahead[0]} to {ahead[-1]}) are in the exports but not added: "
-            "a new day also needs the columns they do not supply, so add it to the daily tab"
+            f"daily: added {len(new)} new day(s), {new[0]} to {new[-1]}. Not reported yet (shown as such, not as zero): "
+            + ("; ".join(f"{s} {len(ds)} day(s)" for s, ds in gaps.items()) or "nothing")
         )
     # Newest day of the series each source actually fed: what the freshness strip should say
     covered = {}

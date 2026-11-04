@@ -7,6 +7,8 @@ import { formatINR, formatPercent, formatNumber } from '../../utils/formatters';
 import { computeRealisticPnL, PnLChannel } from '../../utils/calculations';
 import { MARKETPLACE_COGS_PCT } from '../../data/assumptions';
 import { resolvePeriod } from '../../utils/periods';
+import { CHANNEL_SOURCES, gapFor, reportedDays } from '../../utils/coverage';
+import { GapNotice } from '../common/GapNotice';
 import {
   TrendingDown,
   TrendingUp,
@@ -45,7 +47,13 @@ export const ProfitLossView: React.FC = () => {
 
   const [overheads, setOverheads] = useState<number>(350000);
 
-  const { current: slice, periodLabel } = resolvePeriod(period);
+  const { current: periodDays, periodLabel } = resolvePeriod(period);
+
+  // The P&L only models Shopify and Amazon; any other channel picked elsewhere shows Combined.
+  const pnlChannel: PnLChannel = channel === 'shopify' || channel === 'amazon' ? channel : 'all';
+  // Only days where every source this P&L needs is reported; the rest are named on the cards
+  const gap = gapFor(periodDays, CHANNEL_SOURCES[pnlChannel]);
+  const slice = reportedDays(periodDays, CHANNEL_SOURCES[pnlChannel]);
 
   let shopifyGross = 0;
   let shopifyDiscounts = 0;
@@ -79,8 +87,6 @@ export const ProfitLossView: React.FC = () => {
 
   const proratedOverheads = Math.round((overheads / 30) * slice.length);
 
-  // The P&L only models Shopify and Amazon; any other channel picked elsewhere shows Combined.
-  const pnlChannel: PnLChannel = channel === 'shopify' || channel === 'amazon' ? channel : 'all';
   const showStore = pnlChannel !== 'amazon';
   const showAmazon = pnlChannel !== 'shopify';
 
@@ -191,6 +197,9 @@ export const ProfitLossView: React.FC = () => {
         }
       />
 
+      <GapNotice gap={gap} />
+
+      {!gap?.whole && (<>
       {/* Headline Comparison: Dashboard P&L vs Realistic P&L */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Dashboard Basis P&L */}
@@ -581,6 +590,7 @@ export const ProfitLossView: React.FC = () => {
           <span className="font-mono text-amber-400">Baseline COGS: ₹125/unit Shopify, {MARKETPLACE_COGS_PCT.default}% of sales marketplaces (assumed)</span>
         </div>
       </div>
+      </>)}
     </div>
   );
 };

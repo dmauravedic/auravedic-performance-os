@@ -6,6 +6,7 @@ import { ViewFilterBar } from '../common/ViewFilterBar';
 import { SectionSourceBadge } from '../common/SectionSourceBadge';
 import { formatINR, formatPercent, formatROAS, formatNumber } from '../../utils/formatters';
 import { getFilteredMetrics } from '../../utils/calculations';
+import { GapNotice } from '../common/GapNotice';
 import { defaultCardSources, resolveLatency } from '../../data/channelLatency';
 import { StatTile } from '../common/StatTile';
 import { FeedBadge } from '../common/FeedBadge';
@@ -91,6 +92,7 @@ export const ExecutiveSummaryView: React.FC = () => {
     amazonAdSpend,
     amazonMer,
     chartData,
+    gap,
     deltaSales,
     deltaAdSpend,
     deltaMer,
@@ -124,6 +126,8 @@ export const ExecutiveSummaryView: React.FC = () => {
         }
       />
 
+      <GapNotice gap={gap} />
+
       {/* Top Headline KPI Grid (Section) */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -146,6 +150,7 @@ export const ExecutiveSummaryView: React.FC = () => {
             subtitle={`Pre-returns for ${periodLabel}`}
             badgeText={period.toUpperCase()}
             badgeVariant="saffron"
+            gap={gap}
           />
 
           <MetricCard
@@ -165,6 +170,7 @@ export const ExecutiveSummaryView: React.FC = () => {
             footnote={channel === 'all' ? 'Shopify = Meta + Google · Amazon = Amazon Ads spend (settlement or estimate where the daily export is not loaded)' : undefined}
             badgeText="Active Ads"
             badgeVariant="neutral"
+            gap={gap}
           />
 
           <MetricCard
@@ -181,6 +187,7 @@ export const ExecutiveSummaryView: React.FC = () => {
             footnote={channel === 'all' ? `Total sales ÷ total ad spend (${periodLabel})` : undefined}
             badgeText="Efficiency"
             badgeVariant="success"
+            gap={gap}
           />
 
           <MetricCard
@@ -192,6 +199,7 @@ export const ExecutiveSummaryView: React.FC = () => {
             subtitle={`Net margin: ${formatPercent(marginPercent)} of revenue`}
             badgeText="P&L Realistic"
             badgeVariant={netProfit >= 0 ? 'success' : 'danger'}
+            gap={gap}
           />
         </div>
       </div>
@@ -200,19 +208,23 @@ export const ExecutiveSummaryView: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <StatTile
           title={`Total Orders (${periodLabel})`}
-          value={formatNumber(orders)}
+          value={gap?.whole ? 'Not reported yet' : formatNumber(orders)}
           note={
-            <span className="text-slate-500">
-              vs prior: {formatNumber(priorOrders)} ({deltaOrders >= 0 ? '+' : ''}{deltaOrders.toFixed(1)}%)
-            </span>
+            gap ? (
+              <span className="text-amber-700">Reported days only</span>
+            ) : (
+              <span className="text-slate-500">
+                vs prior: {formatNumber(priorOrders)} ({deltaOrders >= 0 ? '+' : ''}{deltaOrders.toFixed(1)}%)
+              </span>
+            )
           }
           sources={defaultCardSources('executive', channel)}
         />
 
         <StatTile
           title="Average Order Value (AOV)"
-          value={formatINR(aov)}
-          note={<span className="text-slate-500">vs prior: {formatINR(priorAov)}</span>}
+          value={gap?.whole ? 'Not reported yet' : formatINR(aov)}
+          note={gap ? <span className="text-amber-700">Reported days only</span> : <span className="text-slate-500">vs prior: {formatINR(priorAov)}</span>}
           sources={defaultCardSources('executive', channel)}
         />
 
@@ -272,6 +284,7 @@ export const ExecutiveSummaryView: React.FC = () => {
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#64748B' }} domain={[0, 'auto']} tickFormatter={(v) => `${v}x`} />
               <Tooltip
                 formatter={(val: any, name: string) => {
+                  if (val === null || val === undefined) return ['Not reported yet', name];
                   if (name.startsWith('MER')) return [`${Number(val).toFixed(2)}x`, 'Sales per ₹1 Ad'];
                   return [`₹${Number(val).toLocaleString('en-IN')}`, name];
                 }}

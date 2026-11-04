@@ -46,7 +46,11 @@ def write_daily_ts(rows, path, header=None):
         "// variance is seeded noise (scripts/generate_daily_series.py), not a real export. Replace with\n"
         "// the Windsor / Shopify daily pulls when they are wired in.\n"
     )
-    interface = "\n".join(f"  {name}: {kind};" for name, kind in DAILY_FIELDS)
+    interface = "\n".join(f"  {name}: {kind};" for name, kind in DAILY_FIELDS) + (
+        "\n  /** Sources with no figures for this day yet (shopify, amazon, flipkart, nykaa, myntra, meta,\n"
+        "   *  google). Their fields are 0 and must be read as not reported, not as zero. */\n"
+        "  missing?: string[];"
+    )
     ts_code = (
         f"{header}"
         f"export interface DailyRecord {{\n{interface}\n}}\n\n"

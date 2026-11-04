@@ -56,7 +56,12 @@ export const Header: React.FC = () => {
             <div>
               <div className="text-[11px] text-slate-600 flex items-center gap-1 font-medium">
                 <span>{revenueLabel}:</span>
-                <strong className="text-slate-900 font-mono">{formatINR(metrics.sales, true)}</strong>
+                <strong
+                  className={metrics.gap?.whole ? 'text-slate-400 font-sans font-semibold' : 'text-slate-900 font-mono'}
+                  title={metrics.gap?.text}
+                >
+                  {metrics.gap?.whole ? 'Not reported yet' : `${formatINR(metrics.sales, true)}${metrics.gap ? '*' : ''}`}
+                </strong>
                 <span className="text-slate-400">/</span>
                 <span className="text-slate-600 font-mono">{formatINR(monthlyRevenueTarget, true)}</span>
                 <span className={`font-semibold text-[10px] px-1.5 py-0.2 rounded ${targetPercent >= 80 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>

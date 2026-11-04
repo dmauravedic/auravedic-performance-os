@@ -1,5 +1,7 @@
 import type { DashboardDataBundle } from '../data/initialData';
 import type { DailyRecord } from '../data/dailyData';
+import { anyGap, formatDays, SOURCE_NAMES } from './coverage';
+import { formatDayRange } from './periods';
 import type { DashboardView } from '../context/DashboardContext';
 import type { LatencySourceKey } from '../data/channelLatency';
 import { MARKETPLACE_COGS_PCT } from '../data/assumptions';
@@ -84,8 +86,10 @@ export interface ActionPlan {
 
 export interface ActionInputs {
   data: DashboardDataBundle;
-  /** Daily rows for the window the ad and sales rules look at (the last 7 days). */
+  /** Daily rows for the window the ad and sales rules look at (the newest 7 fully reported days). */
   slice: DailyRecord[];
+  /** The newest days of the series, to say which sources have not reported them yet. */
+  recent?: DailyRecord[];
   now: Date;
   cogsPerUnit: number;
   shippingPerOrder: number;
@@ -450,6 +454,16 @@ export function buildActionPlan(input: ActionInputs): ActionPlan {
     doubts.push({
       id: 'doubt-fba-undated',
       text: "The Amazon stock plan is typed in by hand and carries no date, so there's no way to tell how old it is."
+    });
+  }
+  const notReported = anyGap(input.recent ?? []).filter(g => g.source !== 'flipkart' && g.source !== 'nykaa' && g.source !== 'myntra');
+  if (notReported.length > 0) {
+    const window = slice.length ? formatDayRange(slice[0].date, slice[slice.length - 1].date) : '';
+    doubts.push({
+      id: 'doubt-not-reported',
+      text:
+        `${listOf(notReported.map(g => `${SOURCE_NAMES[g.source]} (${formatDays(g.days)})`))} ${notReported.length === 1 ? 'has' : 'have'} not reported yet, so those days are left out` +
+        (window ? `. The advice on ads uses the newest full days instead (${window}).` : '.')
     });
   }
   doubts.push({
