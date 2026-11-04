@@ -22,6 +22,9 @@ With WINDSOR_API_KEY set, Meta, Amazon sales and Amazon Ads (every ad type, summ
 Windsor's API directly (scripts/windsor_api.py) and win over the same tabs in the feed workbook.
 Without it, those tabs are read from the workbook as before.
 
+Shopify's daily totals come from data/shopify_daily.csv in the repo (date, orders, gross_sales,
+discounts, returns), which a Claude scheduled task refreshes each morning through the Shopify connector.
+
 Google Ads is read from the `_GoogleAds_Daily` tab of a separate sheet (GOOGLE_ADS_SHEET_ID), one range
 only (A1:Z6000), and merged over the same daily series. If GOOGLE_ADS_SHEET_ID is not set, the same tab
 is looked for in Shan's report sheet and quietly skipped when it is not there.
@@ -79,6 +82,7 @@ from windsor_api import read_windsor_api  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT, "src", "data")
+SHOPIFY_FILE = os.path.join(ROOT, "data", "shopify_daily.csv")
 
 STR, NUM = "str", "num"
 
@@ -705,6 +709,15 @@ def main():
                 print(f"  {note}")
             # The API is the source of record for these tabs, so it wins over copies in the workbook
             tables = {**(tables or {}), **windsor_tables}
+
+        # Shopify's daily totals, refreshed each morning by a Claude scheduled task through the Shopify
+        # connector and committed to the repo (no customer data: one row a day). A shop_daily tab
+        # from the workbook or a CSV folder wins over it.
+        if os.path.exists(SHOPIFY_FILE) and not (tables or {}).get("shop_daily"):
+            with open(SHOPIFY_FILE, encoding="utf-8", newline="") as f:
+                shop_rows = list(csv.reader(f))
+            print(f"Reading Shopify daily totals from data/shopify_daily.csv ({max(len(shop_rows) - 1, 0)} days)")
+            tables = {**(tables or {}), "shop_daily": shop_rows}
 
         if tables is None and shan_tables is None and google_rows is None:
             print("Data sync is not configured (WINDSOR_API_KEY, or GOOGLE_SERVICE_ACCOUNT_JSON plus")
