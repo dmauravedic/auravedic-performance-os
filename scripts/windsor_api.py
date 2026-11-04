@@ -10,6 +10,9 @@ Meta accounts, the Rs 50,000-per-purchase glitch rule, repeated rows) and the me
   meta_daily      facebook     account x campaign x day
   amz_sales_date  amazon_sp    Sales & Traffic by date
   amz_ads_daily   amazon_ads   one pull per ad type, stacked with an ad_type column
+  amz_settlement  amazon_sp    settlement lines (posted date, type, description, amount)
+
+All pulls run at the same time.
 
 Why Amazon Ads needs several pulls: Windsor keeps each Amazon ad type in its own report (Sponsored
 Products, Sponsored Brands, Sponsored Brands video, Sponsored Display) and refuses to combine fields
@@ -33,6 +36,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 from data_io import SyncError
 
@@ -45,6 +49,9 @@ AMZ_SALES_FIELDS = [
     "sales_and_traffic_report_by_date__salesbydate_orderedproductsales_amount",
     "sales_and_traffic_report_by_date__salesbydate_totalorderitems",
 ]
+
+SETTLE = "v2_settlement_report_data_flat_file_v2__"
+SETTLEMENT_FIELDS = [SETTLE + f for f in ("posted_date", "transaction_type", "amount_type", "amount_description", "amount")]
 
 # ad type label -> (Windsor report prefix, campaign id field suffix)
 AMZ_AD_REPORTS = {
@@ -63,7 +70,7 @@ def _scrub(text, key):
     return str(text).replace(key, "***") if key else str(text)
 
 
-def fetch(connector, fields, date_from, date_to, key, deadline=None, timeout=240, attempts=3, wait=30):
+def fetch(connector, fields, date_from, date_to, key, deadline=None, timeout=900, attempts=3, wait=30):
     """Rows (a list of dicts) for one Windsor pull. Raises SyncError for a refused request and
     NotReady when Windsor is still preparing the data after every attempt, or the run's time
     budget (deadline, a time.monotonic() value) is spent."""
@@ -78,8 +85,11 @@ def fetch(connector, fields, date_from, date_to, key, deadline=None, timeout=240
     for attempt in range(1, attempts + 1):
         if deadline is not None and time.monotonic() > deadline:
             raise NotReady(f"Windsor {connector}: the sync's time budget ran out ({last})")
+        # Windsor holds the request open while it prepares a cold report (Amazon Ads can take 10 minutes
+        # or more), so a short timeout gives up on pulls that would have finished
+        wait_for = timeout if deadline is None else max(30, min(timeout, deadline - time.monotonic()))
         try:
-            with urllib.request.urlopen(urllib.request.Request(url, headers={"Accept": "application/json"}), timeout=timeout) as resp:
+            with urllib.request.urlopen(urllib.request.Request(url, headers={"Accept": "application/json"}), timeout=wait_for) as resp:
                 body = resp.read().decode("utf-8")
         except urllib.error.HTTPError as e:
             detail = _scrub(e.read().decode("utf-8", "replace")[:300], key)
@@ -137,6 +147,11 @@ def amz_sales_table(rows):
     return _table(["date", "ordered_product_sales", "total_order_items"], ([r.get(f) for f in AMZ_SALES_FIELDS] for r in rows))
 
 
+def settlement_table(rows):
+    return _table(["posted_date", "transaction_type", "amount_type", "amount_description", "amount"],
+                  ([r.get(f) for f in SETTLEMENT_FIELDS] for r in rows))
+
+
 def amz_ads_table(pulls):
     """pulls: {ad type: rows}. One row per account x campaign x ad type x day, so the reader's
     repeated-row key (date, campaign, ad type) never folds two accounts together."""
@@ -178,25 +193,32 @@ def read_windsor_api(key, date_from, date_to=None, fetcher=fetch, budget_seconds
             raise SyncError(f"Windsor {connector}: no row has {', '.join(missing)}. First row has: {', '.join(rows[0])}")
         return rows
 
-    rows = pull("Meta", "facebook", META_FIELDS)
-    if rows is not None:
-        tables["meta_daily"] = meta_table(rows)
-        notes.append(f"windsor api: facebook {len(rows)} rows")
-
-    rows = pull("Amazon sales", "amazon_sp", AMZ_SALES_FIELDS)
-    if rows is not None:
-        tables["amz_sales_date"] = amz_sales_table(rows)
-        notes.append(f"windsor api: amazon_sp {len(rows)} rows")
-
-    pulls = {}
+    # Every pull runs at the same time: the slow Amazon Ads reports no longer queue behind each other
+    jobs = {
+        "meta": ("Meta", "facebook", META_FIELDS, date_from),
+        "sales": ("Amazon sales", "amazon_sp", AMZ_SALES_FIELDS, date_from),
+        "settlement": ("Amazon settlement", "amazon_sp", SETTLEMENT_FIELDS, date_from),
+    }
     for ad_type, (prefix, camp) in AMZ_AD_REPORTS.items():
-        rows = pull(f"Amazon Ads ({ad_type})", "amazon_ads", ["date", "account_name", f"{prefix}__{camp}", f"{prefix}__cost"], start=ads_from)
-        if rows is None:
-            notes.append("WARNING Amazon Ads skipped: not every ad type was ready, and a part-sum would understate spend")
-            pulls = None
-            break
-        pulls[ad_type] = rows
-    if pulls is not None:
+        jobs[ad_type] = (f"Amazon Ads ({ad_type})", "amazon_ads", ["date", "account_name", f"{prefix}__{camp}", f"{prefix}__cost"], ads_from)
+    with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+        futures = {name: pool.submit(pull, label, connector, fields, start) for name, (label, connector, fields, start) in jobs.items()}
+        got = {name: f.result() for name, f in futures.items()}
+
+    if got["meta"] is not None:
+        tables["meta_daily"] = meta_table(got["meta"])
+        notes.append(f"windsor api: facebook {len(got['meta'])} rows")
+    if got["sales"] is not None:
+        tables["amz_sales_date"] = amz_sales_table(got["sales"])
+        notes.append(f"windsor api: amazon_sp {len(got['sales'])} rows")
+    if got["settlement"] is not None:
+        tables["amz_settlement"] = settlement_table(got["settlement"])
+        notes.append(f"windsor api: amazon settlement {len(got['settlement'])} rows")
+
+    pulls = {t: got[t] for t in AMZ_AD_REPORTS}
+    if any(rows is None for rows in pulls.values()):
+        notes.append("WARNING Amazon Ads skipped: not every ad type was ready, and a part-sum would understate spend")
+    else:
         tables["amz_ads_daily"] = amz_ads_table(pulls)
         spend = {t: round(sum(float(r.get(f"{AMZ_AD_REPORTS[t][0]}__cost") or 0) for r in rows)) for t, rows in pulls.items()}
         notes.append(f"windsor api: amazon_ads from {ads_from} (Amazon keeps 60 days; older days keep the estimate): " + ", ".join(f"{t} Rs {v:,}" for t, v in spend.items()))

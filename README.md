@@ -135,6 +135,12 @@ If the sheet has bad data (a non-number in a number column, a missing column, a 
 
 **Shopify** comes from `data/shopify_daily.csv` in this repo: one row a day (`date, orders, gross_sales, discounts, returns`, discounts and returns as positive rupees), no customer data. A Claude scheduled task refreshes it every morning at about 05:25 IST from Shopify Analytics (the same figures as Shopify's own sales report: gross sales, discounts, returns as sales reversals, orders) and commits it to `main`, which also triggers a deploy. A `shop_daily` tab in the workbook, if one is ever filled, wins over the file. If the task stops, the file stops moving and the Shopify freshness check turns stale. (Windsor's Shopify connector could not be installed on the store from the account available on 4 Nov; it would need the store owner's login.)
 
+**Amazon settlement** is pulled from Windsor with the rest (settlement report v2) and summed per posted date: refunds (refunded principal), fees (selling, FBA and closing fees and their GST, net of fees returned on refunds, plus advisory and inbound-transport fees) and billed advertising. These replace the flat-rate estimates for every posted day the report covers. Amazon Ads' own daily spend still wins over billed advertising, which lands in lumps.
+
+**Warehouse stock** comes from `data/warehouse_stock.csv` (`key, cbe_d2c, cbe_reserve, mumbai, cbe_asof, mumbai_asof`), copied each morning from the nightly stock desk by the same scheduled task as Shopify. The 9 tracked products get real counts; daily run rates are still typed-in estimates, so days of cover is real stock over estimated demand. The warehouse is dated by the older of the Coimbatore and Mumbai sheets, so a missing sheet shows as stale.
+
+**The freshness strip** lists every daily source and flags one only when it falls past its accepted delay. Flipkart, Nykaa and Myntra have no daily feed, so they appear once as the standing "data gap" item and do not raise the stale banner.
+
 **Windsor.ai exports into the workbook (the older way)** write into the feed workbook, one tab each, and replace the built-in daily figures for the source they cover. They are only read for a source the API did not supply (and `shop_daily` always comes this way for now). Set them up in Windsor's own dashboard (destination Google Sheets, this workbook, the tab name below, daily at 06:00 IST, last 90 days). The workbook's README tab lists the exact fields to select. An `amz_ads_daily` export carries one Amazon ad type only.
 
 | Tab | Windsor connector | Overwrites |
