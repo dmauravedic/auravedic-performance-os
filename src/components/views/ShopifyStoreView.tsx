@@ -5,6 +5,8 @@ import { ViewFilterBar } from '../common/ViewFilterBar';
 import { SectionSourceBadge } from '../common/SectionSourceBadge';
 import { formatINR, formatPercent, formatNumber } from '../../utils/formatters';
 import { resolvePeriod } from '../../utils/periods';
+import { gapFor, reportedDays } from '../../utils/coverage';
+import { GapNotice } from '../common/GapNotice';
 import {
   ShoppingBag,
   CreditCard,
@@ -22,7 +24,10 @@ export const ShopifyStoreView: React.FC = () => {
   const { data, period, setPeriod } = useDashboard();
   const { stateCodRisk } = data;
 
-  const { current: slice, periodLabel } = resolvePeriod(period);
+  const { current: period_days, periodLabel } = resolvePeriod(period);
+  // Only days Shopify has reported; days it has not are left out and named on the cards
+  const gap = gapFor(period_days, ['shopify']);
+  const slice = reportedDays(period_days, ['shopify']);
 
   let shopSales = 0;
   let shopOrders = 0;
@@ -79,6 +84,8 @@ export const ShopifyStoreView: React.FC = () => {
         }
       />
 
+      <GapNotice gap={gap} />
+
       {/* Top Shopify KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
@@ -87,6 +94,7 @@ export const ShopifyStoreView: React.FC = () => {
           subtitle={`Pre-returns | ${periodLabel}`}
           badgeText="Headline"
           badgeVariant="saffron"
+          gap={gap}
         />
 
         <MetricCard
@@ -95,6 +103,7 @@ export const ShopifyStoreView: React.FC = () => {
           subtitle={`${formatNumber(shopOrders)} orders from ${formatNumber(estimatedSessions)} visits`}
           badgeText="Funnel CVR"
           badgeVariant="success"
+          gap={gap}
         />
 
         <MetricCard
@@ -103,6 +112,7 @@ export const ShopifyStoreView: React.FC = () => {
           subtitle={`${formatNumber(Math.round(shopOrders * 0.585))} COD vs ${formatNumber(Math.round(shopOrders * 0.415))} Prepaid`}
           badgeText="Payment Mix"
           badgeVariant="warning"
+          gap={gap}
           footnote="Prepaid incentive adoption growing"
         />
 
@@ -112,6 +122,7 @@ export const ShopifyStoreView: React.FC = () => {
           subtitle={`${formatNumber(helioMetrics.ordersAttributed)} orders via Helio AI`}
           badgeText="Helio AI"
           badgeVariant="primary"
+          gap={gap}
           footnote="Chat conversion rate: 12.8%"
         />
       </div>

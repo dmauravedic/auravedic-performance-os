@@ -3,6 +3,7 @@ import { DailyRecord } from '../data/dailyData';
 import { TimePeriod, ChannelFilter } from '../context/DashboardContext';
 import { resolvePeriod } from './periods';
 import { MARKETPLACE_COGS_PCT } from '../data/assumptions';
+import { CHANNEL_SOURCES, chartValue, gapFor, reportedDays, type Gap } from './coverage';
 
 /**
  * Calculations module for Auravedic Commerce Dashboard
@@ -142,6 +143,10 @@ export interface FilteredMetrics {
   amazonMer: number;
   chartData: any[];
   isSingleDay: boolean;
+  /** Days of the period the figures leave out because a source has not reported them (see coverage.ts). */
+  gap: Gap | null;
+  /** False when either period lost days that way: the % changes are then 0 and must not be shown. */
+  comparable: boolean;
   deltaSales: number;
   deltaAdSpend: number;
   deltaMer: number;
@@ -262,8 +267,12 @@ export function getFilteredMetrics(
     };
   };
 
-  const curr = extractChannelData(currentSlice);
-  const prev = extractChannelData(priorSlice);
+  // Only days where every source the channel's figures need is reported (see coverage.ts)
+  const needs = CHANNEL_SOURCES[channel];
+  const gap = gapFor(currentSlice, needs);
+  const comparable = !gap && !gapFor(priorSlice, needs);
+  const curr = extractChannelData(reportedDays(currentSlice, needs));
+  const prev = extractChannelData(reportedDays(priorSlice, needs));
 
   const channelLabelMap: Record<ChannelFilter, string> = {
     all: 'All Channels (Shopify + Amazon)',
@@ -298,20 +307,23 @@ export function getFilteredMetrics(
       daySpend = r.metaSpend + r.googleSpend + r.amazonBilledAds;
     }
 
+    // A source with no figures for the day is a gap in the chart, not a zero
+    const v = chartValue;
+    const complete = needs.every(src => !r.missing?.includes(src));
     return {
       date: r.date.slice(5), // '10-25'
       fullDate: r.date,
-      Sales: Math.round(daySales),
-      AdSpend: Math.round(daySpend),
-      ShopifySales: Math.round(r.shopifyPreReturns),
-      AmazonSales: Math.round(r.amazonSales),
-      ShopifyAdSpend: Math.round(r.metaSpend + r.googleSpend),
-      AmazonAdSpend: Math.round(r.amazonBilledAds),
-      MER: daySpend > 0 ? Number((daySales / daySpend).toFixed(2)) : 0
+      Sales: complete ? Math.round(daySales) : null,
+      AdSpend: complete ? Math.round(daySpend) : null,
+      ShopifySales: v(r, ['shopify'], Math.round(r.shopifyPreReturns)),
+      AmazonSales: v(r, ['amazon'], Math.round(r.amazonSales)),
+      ShopifyAdSpend: v(r, ['meta', 'google'], Math.round(r.metaSpend + r.googleSpend)),
+      AmazonAdSpend: v(r, ['amazon'], Math.round(r.amazonBilledAds)),
+      MER: complete && daySpend > 0 ? Number((daySales / daySpend).toFixed(2)) : null
     };
   });
 
-  const delta = (c: number, p: number) => (p > 0 ? ((c - p) / p) * 100 : 0);
+  const delta = (c: number, p: number) => (comparable && p > 0 ? ((c - p) / p) * 100 : 0);
 
   return {
     periodLabel,
@@ -339,6 +351,8 @@ export function getFilteredMetrics(
     amazonMer: curr.amazonMer,
     chartData,
     isSingleDay,
+    gap,
+    comparable,
     deltaSales: delta(curr.sales, prev.sales),
     deltaAdSpend: delta(curr.adSpend, prev.adSpend),
     deltaMer: delta(curr.mer, prev.mer),

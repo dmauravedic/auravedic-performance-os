@@ -33,6 +33,9 @@ export interface DailyRecord {
   totalAdsIncluded: number;
   totalSales: number;
   salesPerRupeeAd: number;
+  /** Sources with no figures for this day yet (shopify, amazon, flipkart, nykaa, myntra, meta,
+   *  google). Their fields are 0 and must be read as not reported, not as zero. */
+  missing?: string[];
 }
 
 export const dailyRecords: DailyRecord[] = [
