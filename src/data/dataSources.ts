@@ -37,10 +37,10 @@ export const SOURCE_ROWS: SourceRow[] = [
     group: 'Sales',
     name: 'Shopify orders and sales',
     provides: 'Orders, gross sales, discounts, returns, COD vs prepaid mix',
-    origin: 'Shopify store, read by Claude scheduled task #9',
+    origin: "Shopify Analytics, read each morning by a Claude scheduled task and saved as data/shopify_daily.csv in the repo (daily totals only)",
     arrives: 'Automated',
-    schedule: 'Daily at 04:51 IST, for yesterday',
-    today: 'Bundled snapshot to 25 Oct. Daily rows are calibrated to the handbook totals until the Shopify export tab (shop_daily) is switched on.',
+    schedule: 'Daily at about 05:25 IST, through yesterday; the 06:30 build picks it up',
+    today: 'Real daily Shopify totals from 27 Aug. If the morning task fails, the file stops moving and this source turns stale.',
     freshnessKey: 'shopify',
     usedOn: 'Executive, P&L, Advertising, Shopify'
   },

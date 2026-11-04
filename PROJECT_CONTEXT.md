@@ -124,7 +124,7 @@ Recent commits (newest first): `a6f2b5e` Google Ads sheet + Amazon Ads Windsor +
 
 | Channel / metric | How it arrives | Notes |
 |---|---|---|
-| Shopify orders, sales | Claude scheduled task, daily 04:51 IST | Not automated into the sheet: Windsor's Shopify connector is not connected (`shop_daily` tab unused) |
+| Shopify orders, sales | Claude scheduled task, daily ~05:25 IST, writes `data/shopify_daily.csv` | Daily totals only; the build reads the file |
 | Meta Ads | Windsor API `facebook` (fallback: `meta_daily` tab) | Daily; 5 accounts; live to 3 Nov in Windsor |
 | Google Ads | Google Ads script into `_GoogleAds_Daily` (separate sheet) | Daily; one row per day; read via secret `GOOGLE_ADS_SHEET_ID` |
 | Amazon sales | Windsor API `amazon_sp` (fallback: `amz_sales_date` tab) | 1 to 2 days behind; live to 2 Nov in Windsor |
@@ -162,7 +162,7 @@ Recent commits (newest first): `a6f2b5e` Google Ads sheet + Amazon Ads Windsor +
 ### B. Data gaps
 1. **New days (decided 4 Nov: option "show as incomplete").** The sync adds every day after the series end that any source covers and lists the sources with no figures in the row's `missing` field. The app counts each figure only over days where all its sources are reported (`src/utils/coverage.ts`), names the missing days, hides % changes for part-periods, shows "Not reported yet" when nothing is complete, and draws gaps in charts. Until Shopify is automated, Shopify-based figures (All channels, Shopify, P&L, Advertising) stop at 25 Oct while Amazon and Meta move forward.
 2. **The bundled daily series is not a real export.** Block totals match the handbook (27 to 31 Aug, 1 to 25 Sep, 26 to 30 Sep, 1 to 25 Oct) but the day-to-day values are seeded noise. Real days replace it only where a live export overwrites them (Google from 1 Sep; Amazon Ads for its 90 days).
-3. **Shopify has no automated feed** (the biggest gap now: it holds back every combined figure on new days). Connect Shopify in Windsor and add it to `windsor_api.py`.
+3. **Shopify (4 Nov):** real daily totals from `data/shopify_daily.csv`, refreshed each morning (~05:25 IST) by a Claude scheduled task through the Shopify connector and committed to `main`. This replaces the seeded Shopify days too. Windsor's Shopify app would not install from the account available (store probably owned by another login); revisit with the store owner if the dashboard should stop depending on Claude for Shopify.
 4. **Meta ad-set detail is illustrative** (`adLevelData.ts`): spend, purchases and ROAS tie to the real accounts but CTR, frequency and the ad-set split are generated. A Windsor `facebook` ad-set export is needed.
 5. **Costs are placeholders:** flat ₹125 per unit and 27.5% of marketplace sales. Real landed costs per SKU (a `dim_costs` tab was proposed, not built) would replace them. Not confirmed whether the 27.5% applies to gross sales before refunds (assumed so).
 6. **Missing reports:** payment gateway and COD fees, Flipkart settlement reports, Flipkart cancellation and return reasons, stock reports for Flipkart, Nykaa, Myntra, Purplle and Snapdeal, the Amazon 21 Oct ₹1.94L fee adjustment (unclassified, excluded), full Amazon settlement history.
