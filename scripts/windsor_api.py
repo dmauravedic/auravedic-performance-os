@@ -150,16 +150,23 @@ def amz_ads_table(pulls):
     return _table(["date", "campaign", "ad_type", "cost"], out)
 
 
-def read_windsor_api(key, date_from, date_to=None, fetcher=fetch, budget_seconds=1800):
+# Amazon's advertising API only serves the last 60 days and refuses the whole request if it starts
+# earlier. 58 leaves room for the runner (UTC) and Windsor counting the day differently.
+AMAZON_ADS_DAYS = 58
+
+
+def read_windsor_api(key, date_from, date_to=None, fetcher=fetch, budget_seconds=1800, today=None):
     """{tab: table} for every source Windsor could serve, plus notes. date_to defaults to yesterday.
     budget_seconds caps the whole set of pulls so a slow Windsor cannot hold the daily deploy."""
-    date_to = date_to or (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+    today = today or datetime.date.today()
+    date_to = date_to or (today - datetime.timedelta(days=1)).isoformat()
+    ads_from = max(date_from, (today - datetime.timedelta(days=AMAZON_ADS_DAYS)).isoformat())
     deadline = time.monotonic() + budget_seconds
     tables, notes = {}, []
 
-    def pull(label, connector, fields):
+    def pull(label, connector, fields, start=date_from):
         try:
-            rows = fetcher(connector, fields, date_from, date_to, key, deadline=deadline)
+            rows = fetcher(connector, fields, start, date_to, key, deadline=deadline)
         except NotReady as e:
             notes.append(f"WARNING {e}; {label} keeps its bundled data this run")
             return None
@@ -183,7 +190,7 @@ def read_windsor_api(key, date_from, date_to=None, fetcher=fetch, budget_seconds
 
     pulls = {}
     for ad_type, (prefix, camp) in AMZ_AD_REPORTS.items():
-        rows = pull(f"Amazon Ads ({ad_type})", "amazon_ads", ["date", "account_name", f"{prefix}__{camp}", f"{prefix}__cost"])
+        rows = pull(f"Amazon Ads ({ad_type})", "amazon_ads", ["date", "account_name", f"{prefix}__{camp}", f"{prefix}__cost"], start=ads_from)
         if rows is None:
             notes.append("WARNING Amazon Ads skipped: not every ad type was ready, and a part-sum would understate spend")
             pulls = None
@@ -192,6 +199,6 @@ def read_windsor_api(key, date_from, date_to=None, fetcher=fetch, budget_seconds
     if pulls is not None:
         tables["amz_ads_daily"] = amz_ads_table(pulls)
         spend = {t: round(sum(float(r.get(f"{AMZ_AD_REPORTS[t][0]}__cost") or 0) for r in rows)) for t, rows in pulls.items()}
-        notes.append("windsor api: amazon_ads " + ", ".join(f"{t} Rs {v:,}" for t, v in spend.items()))
+        notes.append(f"windsor api: amazon_ads from {ads_from} (Amazon keeps 60 days; older days keep the estimate): " + ", ".join(f"{t} Rs {v:,}" for t, v in spend.items()))
 
     return tables, notes
