@@ -648,8 +648,10 @@ def apply(tables, shan_tables, google_rows, out_dir, dry_run):
 
 def apply_warehouse(data, table):
     """Real stock counts from data/warehouse_stock.csv (key, cbe_d2c, cbe_reserve, mumbai, cbe_asof,
-    mumbai_asof) over the products the dashboard tracks. Daily run rates stay as they are (typed in:
-    see the brief); days of cover and the reorder flag are worked out again from the real stock. The
+    mumbai_asof, and optionally daily_rate) over the products the dashboard tracks. daily_rate is the
+    stock desk's own demand per product (Shopify units with combos split, plus inferred marketplace
+    units; see scripts/stock_desk_export.cjs) and replaces the typed-in run rate when present. Days of
+    cover and the reorder flag are worked out again from the real stock. The
     warehouse's last-updated time is the OLDER of the two sheets, so a warehouse whose sheet was not
     posted shows as stale instead of hiding behind the other one."""
     header = [squash_name(h) for h in table[0]] if table else []
@@ -658,6 +660,7 @@ def apply_warehouse(data, table):
     if missing:
         raise SyncError(f"data/warehouse_stock.csv: missing column(s) {', '.join(missing)}")
     idx = {n: header.index(n) for n in need}
+    rate_col = header.index("daily_rate") if "daily_rate" in header else None
     rows = {}
     for line, row in enumerate(table[1:], start=2):
         if not any(str(c).strip() for c in row):
@@ -667,14 +670,23 @@ def apply_warehouse(data, table):
             d2c, rsrv, mum = (int(float(row[idx[n]])) for n in ("cbe_d2c", "cbe_reserve", "mumbai"))
         except ValueError:
             raise SyncError(f"data/warehouse_stock.csv row {line}: stock must be numbers")
-        rows[key] = (d2c, rsrv, mum, row[idx["cbe_asof"]].strip(), row[idx["mumbai_asof"]].strip())
-    updated, asof = 0, []
+        rate = None
+        if rate_col is not None and rate_col < len(row) and str(row[rate_col]).strip():
+            try:
+                rate = float(row[rate_col])
+            except ValueError:
+                raise SyncError(f"data/warehouse_stock.csv row {line}: daily_rate must be a number")
+        rows[key] = (d2c, rsrv, mum, row[idx["cbe_asof"]].strip(), row[idx["mumbai_asof"]].strip(), rate)
+    updated, rated, asof = 0, 0, []
     for item in data.get("warehouseStock", []):
         r = rows.get(item["key"])
         if not r:
             continue
-        d2c, rsrv, mum, cbe_asof, mum_asof = r
+        d2c, rsrv, mum, cbe_asof, mum_asof, desk_rate = r
         item.update(cbeD2CAvl=d2c, cbeBulkReserve=rsrv, cbeSIH=d2c + rsrv, mumbaiSIH=mum, totalStock=d2c + rsrv + mum)
+        if desk_rate is not None:
+            item["dailyRunRate"] = round(desk_rate, 1)
+            rated += 1
         rate = item.get("dailyRunRate") or 0
         item["daysOfCover"] = round(item["totalStock"] / rate, 1) if rate > 0 else 999
         item["reorderNeeded"] = item["daysOfCover"] < 14
@@ -684,7 +696,7 @@ def apply_warehouse(data, table):
         return "warehouse_stock: no tracked product found in the file, keeping the bundled stock"
     oldest = min(d for d in asof if d)
     data["freshness"]["warehouseStock"] = f"{oldest} 23:00 IST"
-    return f"warehouse_stock: {updated} products updated; Coimbatore as of {max(r[3] for r in rows.values())}, Mumbai as of {max(r[4] for r in rows.values())}"
+    return f"warehouse_stock: {updated} products updated ({rated} with the stock desk's demand); Coimbatore as of {max(r[3] for r in rows.values())}, Mumbai as of {max(r[4] for r in rows.values())}"
 
 
 def squash_name(text):
