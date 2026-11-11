@@ -130,7 +130,7 @@ Recent commits (newest first): `a6f2b5e` Google Ads sheet + Amazon Ads Windsor +
 | Amazon sales | Windsor API `amazon_sp` (fallback: `amz_sales_date` tab) | 1 to 2 days behind; live to 2 Nov in Windsor |
 | Amazon settlement | Windsor `amazon_sp` | Day-level only for 13 to 25 Oct; earlier months use flat rates (refunds 4.8%, fees 27.2%) |
 | Amazon Ads (daily) | Windsor API `amazon_ads`, one pull per ad type | Two accounts connected; only account ...2908 has spend. Sponsored Products about ₹21k to 24k a day, Display from 30 Oct (about ₹1k a day), Brands non-video ₹0. Brands video not checked (pull did not finish). A sheet export (`amz_ads_daily`) can only carry one ad type |
-| Amazon Ads (monthly report) | Shan's sheet, tab `Amazon Ads` | Manual; kept as a cross-check |
+| Amazon Ads (monthly report) | Windsor `amazon_ads` (spend, attributed sales and orders), added up by month; TACOS against `amazon_sp` sales. Months older than Amazon's 60 days: Shan's sheet, tab `Amazon Ads` | Automated (sheet only for older months) |
 | Flipkart | Reports posted in Slack and parsed by a task | Manual; rupee values are estimates (units x price) that ran about 8% high on 28 Oct |
 | Nykaa, Myntra | Shan's sheet, monthly rows | Manual |
 | Purplle, Snapdeal ads | Shan's sheet | Stale (last entries Jun 2024 and Dec 2023) |

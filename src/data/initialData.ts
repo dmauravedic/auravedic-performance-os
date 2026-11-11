@@ -136,6 +136,10 @@ export interface MarketplaceAdsItem {
   totalRevenue?: number;
   /** Ad spend as a % of the channel's total revenue. */
   tacos?: number;
+  /** "windsor" when the month is built from the daily Amazon Ads feed; absent for a month typed into Shan's sheet. */
+  source?: 'windsor';
+  /** Last day counted, for a month still in progress ("2026-11-09"). Absent for a complete month. */
+  through?: string;
 }
 
 export interface FreshnessInfo {
@@ -146,6 +150,8 @@ export interface FreshnessInfo {
   amazonSettlement: string;
   /** Set by the sync once the Amazon Ads export has loaded; until then ad spend is the settlement figure. */
   amazonAds?: string;
+  /** Last day of the Amazon monthly ad report built from the Windsor feed. Absent while it comes from Shan's sheet only. */
+  amazonAdsMonthly?: string;
   flipkartOrders: string;
   warehouseStock: string;
   assumptions: {

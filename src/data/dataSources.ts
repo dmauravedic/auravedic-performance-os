@@ -51,7 +51,7 @@ export const SOURCE_ROWS: SourceRow[] = [
     origin: 'Windsor API, connector amazon_sp (Sales and Traffic by date), pulled at each build',
     arrives: 'Automated',
     schedule: 'Daily. Amazon reports about a day behind; two days is normal',
-    today: 'Bundled snapshot to 25 Oct until the WINDSOR_API_KEY secret is set.',
+    today: d => `Loaded to ${d.freshness.amazonSales.slice(0, 10)}.`,
     freshnessKey: 'amazonSales',
     usedOn: 'Executive, P&L, Marketplaces'
   },
@@ -117,7 +117,7 @@ export const SOURCE_ROWS: SourceRow[] = [
     origin: 'Windsor API, connector facebook, pulled at each build',
     arrives: 'Automated',
     schedule: 'Daily, at the 06:30 IST build. Ad-days over ₹50,000 per purchase are dropped as glitches',
-    today: 'Bundled snapshot to 25 Oct until the WINDSOR_API_KEY secret is set.',
+    today: d => `Loaded to ${d.freshness.metaAds.slice(0, 10)}.`,
     freshnessKey: 'meta',
     usedOn: 'Executive, P&L, Advertising'
   },
@@ -138,7 +138,7 @@ export const SOURCE_ROWS: SourceRow[] = [
     origin: 'Daily Google Ads sheet, tab _GoogleAds_Daily (read as one range; no other tab is opened)',
     arrives: 'Automated',
     schedule: 'Daily; the site picks it up at the next build',
-    today: 'Bundled snapshot to 25 Oct until the sheet is connected.',
+    today: d => `Loaded to ${d.freshness.googleAds.slice(0, 10)}.`,
     freshnessKey: 'google',
     usedOn: 'Executive, P&L, Advertising'
   },
@@ -159,16 +159,21 @@ export const SOURCE_ROWS: SourceRow[] = [
   {
     group: 'Advertising',
     name: 'Amazon Ads monthly report',
-    provides: 'Monthly ad spend, ad revenue, orders, TACOS',
-    origin: "Shan's report sheet, tab Amazon Ads",
-    arrives: 'Manual',
-    schedule: 'One column a month',
-    today: d =>
-      `Latest month: ${lastReport(d, 'Amazon.in')}. ${
-        d.freshness.amazonAds
-          ? 'Kept as a cross-check against the daily Amazon Ads spend.'
-          : 'Combined ad spend and MER still use the settlement estimate, which runs higher.'
-      }`,
+    provides: 'Monthly ad spend, ad revenue, ad orders, ROAS, TACOS',
+    origin:
+      "Windsor API, connector amazon_ads (spend plus the sales and orders Amazon attributes to the ads: 7 days for Sponsored Products, 14 for Brands and Display), added up by month. TACOS uses Amazon's ordered sales (amazon_sp) for the same days. Months older than Amazon's 60 days stay on Shan's sheet, tab Amazon Ads",
+    arrives: 'Automated',
+    schedule: 'Daily, at the 06:30 IST build. The current month shows month to date',
+    today: d => {
+      const months = (d.marketplaceAds ?? []).filter(a => a.channel === 'Amazon.in').sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+      const fed = months.filter(a => a.source === 'windsor');
+      if (!fed.length) return `Latest month: ${lastReport(d, 'Amazon.in')}, from Shan's sheet. The Windsor months load at the next build.`;
+      const last = fed[fed.length - 1];
+      const sheet = months.filter(a => a.source !== 'windsor');
+      return `${fed.map(a => a.month).join(', ')} from Windsor${last.through ? ` (${last.month} to ${Number(last.through.slice(8))} ${last.month.slice(0, 3)})` : ''}${
+        sheet.length ? `; ${sheet[0].month}–${sheet[sheet.length - 1].month} from Shan's sheet` : ''
+      }.`;
+    },
     freshnessKey: 'amazonAdsReport',
     usedOn: 'Advertising (Marketplace ads, findings)'
   },

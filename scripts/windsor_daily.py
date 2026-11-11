@@ -240,6 +240,103 @@ def amz_ads_daily(table):
     return out, f"amz_ads_daily: {len(out)} days; {processed - len(kept)} repeated rows ignored; replaces the estimated Amazon ad spend"
 
 
+def amz_ads_months(ads_table, sales_table, today=None):
+    """Amazon's monthly ad report from the daily Windsor `amazon_ads` rows, in the same shape as the
+    months typed into Shan's sheet: ad spend, ad revenue (attributed sales), ad orders, ROAS, and
+    TACOS against Amazon's ordered product sales (Windsor `amazon_sp`) for the same days.
+
+    Amazon Ads keeps 60 days, so only months the rows cover from the 1st are returned (a month that
+    starts before the window would be a part-month against the sheet's full one). The newest month is
+    returned while it is still running, with `through` set to its last day. TACOS and channel revenue
+    use only the days that have both ads and sales (Amazon sales can run a day behind the ads).
+    Returns (records, notes); records are [] when the export has no sales column (an old export)."""
+    header, rows = table_body(ads_table)
+    if not rows:
+        return [], []
+    c_date = find_col(header, ["date", "day"])
+    c_spend = find_col(header, AMAZON_ADS_SPEND, contains=["cost", "spend"], avoid=["per", "cpc", "acos", "roas", "micros", "conv"])
+    c_sales = find_col(header, ["adsales", "attributedsales", "sales"])
+    c_orders = find_col(header, ["adorders", "attributedorders", "orders", "purchases", "conversions"])
+    if c_date is None or c_spend is None or c_sales is None:
+        return [], ["amz_ads monthly: the export has no ad sales column, so the monthly report stays on Shan's sheet"]
+    c_camp = find_col(header, ["campaignid", "campaign", "campaignname"])
+    c_type = find_col(header, ["adtype", "campaigntype", "adproduct", "type"])
+    if not any(str(at(row, c_sales)).strip() for _, row in rows):
+        # Windsor left the attributed sales out: a month of spend with no revenue would read as 0x ROAS
+        return [], ["amz_ads monthly: Windsor sent no ad sales this run, so the monthly report stays on Shan's sheet"]
+    kept = {}
+    for line, row in rows:
+        if not str(at(row, c_date)).strip():
+            continue
+        date = parse_date(at(row, c_date), f"amz_ads_daily row {line}")
+        key = (date, str(at(row, c_camp)).strip().lower(), str(at(row, c_type)).strip().lower())
+        sales = metric(row, c_sales, "amz_ads_daily", line, "ad sales")
+        orders = metric(row, c_orders, "amz_ads_daily", line, "ad orders") if c_orders is not None else 0
+        kept[key] = (date, metric(row, c_spend, "amz_ads_daily", line, "cost"), sales, orders)
+    days = {}
+    for date, spend, sales, orders in kept.values():
+        d = days.setdefault(date, [0.0, 0.0, 0.0])
+        d[0] += spend
+        d[1] += sales
+        d[2] += orders
+    amazon_sales = (amz_sales_date(sales_table)[0] or {}) if sales_table else {}
+
+    first, last = min(days), max(days)
+    months = sorted({d[:7] for d in days})
+    out, notes = [], []
+    for key in months:
+        if f"{key}-01" < first:
+            notes.append(f"amz_ads monthly: {key} starts before Amazon's 60-day window, so it stays on Shan's sheet")
+            continue
+        mdays = sorted(d for d in days if d[:7] == key)
+        spend = sum(days[d][0] for d in mdays)
+        sales = sum(days[d][1] for d in mdays)
+        orders = sum(days[d][2] for d in mdays)
+        y, m = int(key[:4]), int(key[5:])
+        rec = {"channel": "Amazon.in", "month": f"{MONTH_ABBR[m - 1]} {y}", "monthKey": key,
+               "adSpend": round(spend), "adRevenue": round(sales), "adOrders": int(round(orders)), "source": "windsor"}
+        if spend > 0:
+            rec["adRoas"] = round(sales / spend, 2)
+        both = [d for d in mdays if d in amazon_sales]
+        if both:
+            revenue = sum(amazon_sales[d]["amazonSales"] for d in both)
+            rec["totalRevenue"] = round(revenue)
+            rec["totalOrders"] = int(sum(amazon_sales[d]["amazonOrders"] for d in both))
+            if revenue > 0:
+                rec["tacos"] = round(sum(days[d][0] for d in both) / revenue * 100, 2)
+        month_end = (datetime.date(y + (m == 12), m % 12 + 1, 1) - datetime.timedelta(days=1)).isoformat()
+        if mdays[-1] < month_end:
+            rec["through"] = mdays[-1]
+        out.append(rec)
+    if out:
+        notes.append(f"amz_ads monthly: {', '.join(r['month'] for r in out)} from Windsor (to {last}) -> marketplaceAds (Amazon.in)")
+    return out, notes
+
+
+MONTH_ABBR = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
+
+
+def merge_amazon_months(existing, months):
+    """Windsor's Amazon months replace the sheet's for the same month and add the newer ones; the
+    sheet's older months stay. Returns (records, notes comparing any month both have)."""
+    if not months:
+        return existing, []
+    by_key = {m["monthKey"]: m for m in months}
+    notes = []
+    kept = []
+    for r in existing:
+        if r.get("channel") == "Amazon.in" and r.get("monthKey") in by_key:
+            w = by_key[r["monthKey"]]
+            if not w.get("through") and r.get("adSpend"):
+                diff = (w["adSpend"] - r["adSpend"]) / r["adSpend"] * 100
+                notes.append(f"amz_ads monthly: {w['month']} spend Windsor Rs {w['adSpend']:,} vs sheet Rs {r['adSpend']:,} ({diff:+.1f}%)")
+            continue
+        kept.append(r)
+    others = [r for r in kept if r.get("channel") != "Amazon.in"]
+    amazon = sorted([r for r in kept if r.get("channel") == "Amazon.in"] + months, key=lambda r: r["monthKey"])[-24:]
+    return amazon + others, notes
+
+
 def amz_settlement(table):
     """Amazon settlement lines (Windsor `amazon_sp`, settlement report v2), summed per posted date into
     refunds, fees and billed advertising. These replace the flat-rate estimates for every date the
