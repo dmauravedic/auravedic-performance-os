@@ -61,7 +61,7 @@ export const LATENCY_SOURCES: Record<LatencySourceKey, LatencySource> = {
     latency: '1–2d behind (Amazon report lag)',
     match: /billed ads|amazon ads|amazon ad spend/
   },
-  amazonAdsReport: { label: 'Amazon Ads monthly report', latency: 'Monthly · entered by hand', match: NEVER_BY_TEXT },
+  amazonAdsReport: { label: 'Amazon Ads monthly report', latency: 'Monthly totals of the daily Amazon Ads feed · 1–2d behind', match: NEVER_BY_TEXT },
   flipkart: {
     label: 'Flipkart',
     latency: 'Orders daily (09:40 IST) · ads & stock weekly',
@@ -100,7 +100,7 @@ export const SOURCE_ORIGIN: Record<LatencySourceKey, { from: string; route: Sour
   amazonSales: { from: 'Amazon sales (Windsor)', route: 'automated' },
   amazonSettlement: { from: 'Amazon settlement (Windsor)', route: 'automated' },
   amazonAds: { from: 'Amazon Ads (Windsor)', route: 'automated' },
-  amazonAdsReport: { from: "Amazon Ads monthly report (Shan's sheet)", route: 'manual' },
+  amazonAdsReport: { from: 'Amazon Ads (Windsor), added up by month', route: 'automated' },
   flipkart: { from: 'Flipkart reports (Slack)', route: 'manual' },
   flipkartAds: { from: "Flipkart ads (Shan's sheet)", route: 'manual' },
   nykaa: { from: "Nykaa report (Shan's sheet)", route: 'manual' },
@@ -243,7 +243,12 @@ export const FRESHNESS_RULES: Partial<Record<LatencySourceKey, FreshnessRule>> =
     lagShort: 'Amazon Ads runs 1–2 days behind (expected)',
     staleAfterHours: 72
   },
-  amazonAdsReport: MONTHLY_REPORT,
+  amazonAdsReport: {
+    expectedLagHours: 30,
+    lagNote: 'The monthly Amazon ad figures are added up from the daily Amazon Ads feed, which runs a day or two behind.',
+    lagShort: 'Amazon Ads runs 1–2 days behind (expected)',
+    staleAfterHours: 72
+  },
   flipkartAds: MONTHLY_REPORT,
   nykaa: MONTHLY_REPORT,
   myntra: MONTHLY_REPORT,

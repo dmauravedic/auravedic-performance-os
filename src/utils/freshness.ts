@@ -73,6 +73,8 @@ export function asOfFor(key: LatencySourceKey, data: DashboardDataBundle): Date 
       // Until the Amazon Ads export loads, ad spend is the settlement figure and is as old as it
       return parseAsOf(f.amazonAds ?? f.amazonSettlement);
     case 'amazonAdsReport': {
+      // Built from the daily Amazon Ads feed when Windsor has it; otherwise the last month typed into the sheet
+      if (f.amazonAdsMonthly) return parseAsOf(f.amazonAdsMonthly);
       const k = latestMonthKey(data, 'Amazon.in');
       return k ? monthEnd(k) : null;
     }

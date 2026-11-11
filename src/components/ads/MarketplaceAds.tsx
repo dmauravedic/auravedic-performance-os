@@ -80,6 +80,11 @@ export const MarketplaceAds: React.FC<{ ads: MarketplaceAdsItem[] }> = ({ ads })
                   </td>
                   <td className="py-2.5 px-3 whitespace-nowrap">
                     {r.month}
+                    {r.through && (
+                      <div className="mt-1 text-[10px] font-semibold text-slate-500">
+                        Month to date, to {Number(r.through.slice(8))} {r.month.slice(0, 3)}
+                      </div>
+                    )}
                     {behind >= 3 && (
                       <div className="mt-1 inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full border bg-slate-100 text-slate-600 border-slate-300">
                         No report for {behind} months
@@ -98,6 +103,7 @@ export const MarketplaceAds: React.FC<{ ads: MarketplaceAdsItem[] }> = ({ ads })
           </tbody>
         </table>
         <p className="text-[11px] text-slate-400 mt-1.5">
+          Amazon.in's recent months are added up from the daily Amazon Ads feed (Windsor); older months and the other marketplaces come from Shan's sheet.
           TACOS is ad spend divided by the channel's total revenue for the month. Nykaa's own sheet adds Meta spend to its TACOS; this uses the platform's ads only.
         </p>
       </div>
@@ -128,7 +134,7 @@ export const MarketplaceAds: React.FC<{ ads: MarketplaceAdsItem[] }> = ({ ads })
           table={{
             columns: ['Month', 'Ad spend', 'Ad revenue', 'ROAS', 'Ad orders', 'Channel revenue', 'TACOS'],
             rows: series.map(r => [
-              r.month,
+              r.through ? `${r.month} (to ${Number(r.through.slice(8))} ${r.month.slice(0, 3)})` : r.month,
               formatINR(r.adSpend),
               r.adRevenue != null ? formatINR(r.adRevenue) : '—',
               r.adRoas != null ? `${r.adRoas.toFixed(2)}x` : '—',

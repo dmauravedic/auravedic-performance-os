@@ -9,7 +9,8 @@ Meta accounts, the Rs 50,000-per-purchase glitch rule, repeated rows) and the me
 
   meta_daily      facebook     account x campaign x day
   amz_sales_date  amazon_sp    Sales & Traffic by date
-  amz_ads_daily   amazon_ads   one pull per ad type, stacked with an ad_type column
+  amz_ads_daily   amazon_ads   one pull per ad type, stacked with an ad_type column: spend, and the
+                               sales and orders Amazon attributes to the ads
   amz_settlement  amazon_sp    settlement lines (posted date, type, description, amount)
 
 All pulls run at the same time.
@@ -60,6 +61,26 @@ AMZ_AD_REPORTS = {
     "sponsored_brands_video": ("sponsored_brands_campaign_video", "campaignid"),
     "sponsored_display": ("sponsored_display_campaign", "campaign_id"),
 }
+
+# ad type -> (attributed sales field suffix, attributed orders field suffix). The windows are the ones
+# the Amazon Ads console shows a seller: 7 days after the click for Sponsored Products, 14 days for
+# Sponsored Brands and Display. They feed the monthly ad report (ad revenue, ad orders, ROAS, TACOS);
+# the daily series uses spend only.
+AMZ_AD_RESULTS = {
+    "sponsored_products": ("attributedsales7d", "attributedconversions7d"),
+    "sponsored_brands": ("attributedsales14d", "attributedconversions14d"),
+    "sponsored_brands_video": ("sales", "purchases"),
+    "sponsored_display": ("sales", "purchases"),
+}
+
+
+def amz_ad_fields(ad_type):
+    """(fields to ask for, the subset that may be absent). Spend is required; if Windsor leaves the
+    sales or orders out, the spend still loads and the month just has no ad revenue."""
+    prefix, camp = AMZ_AD_REPORTS[ad_type]
+    sales, orders = AMZ_AD_RESULTS[ad_type]
+    results = [f"{prefix}__{sales}", f"{prefix}__{orders}"]
+    return ["date", "account_name", f"{prefix}__{camp}", f"{prefix}__cost"] + results, set(results)
 
 
 class NotReady(Exception):
@@ -158,11 +179,13 @@ def amz_ads_table(pulls):
     out = []
     for ad_type, rows in pulls.items():
         prefix, camp = AMZ_AD_REPORTS[ad_type]
+        sales, orders = AMZ_AD_RESULTS[ad_type]
         for r in rows:
             account = str(r.get("account_name") or r.get("account_id") or "").strip()
             campaign = str(r.get(f"{prefix}__{camp}") or "").strip()
-            out.append([r.get("date"), f"{account}|{campaign}", ad_type, r.get(f"{prefix}__cost")])
-    return _table(["date", "campaign", "ad_type", "cost"], out)
+            out.append([r.get("date"), f"{account}|{campaign}", ad_type, r.get(f"{prefix}__cost"),
+                        r.get(f"{prefix}__{sales}"), r.get(f"{prefix}__{orders}")])
+    return _table(["date", "campaign", "ad_type", "cost", "ad_sales", "ad_orders"], out)
 
 
 # Amazon's advertising API only serves the last 60 days and refuses the whole request if it starts
@@ -179,7 +202,7 @@ def read_windsor_api(key, date_from, date_to=None, fetcher=fetch, budget_seconds
     deadline = time.monotonic() + budget_seconds
     tables, notes = {}, []
 
-    def pull(label, connector, fields, start=date_from):
+    def pull(label, connector, fields, start=date_from, optional=frozenset()):
         try:
             rows = fetcher(connector, fields, start, date_to, key, deadline=deadline)
         except NotReady as e:
@@ -188,21 +211,22 @@ def read_windsor_api(key, date_from, date_to=None, fetcher=fetch, budget_seconds
         if not isinstance(rows, list) or any(not isinstance(r, dict) for r in rows):
             raise SyncError(f"Windsor {connector}: expected a list of rows")
         # A field missing from every row would read as zero and quietly replace real numbers
-        missing = [f for f in fields if rows and not any(f in r for r in rows)]
+        missing = [f for f in fields if f not in optional and rows and not any(f in r for r in rows)]
         if missing:
             raise SyncError(f"Windsor {connector}: no row has {', '.join(missing)}. First row has: {', '.join(rows[0])}")
         return rows
 
     # Every pull runs at the same time: the slow Amazon Ads reports no longer queue behind each other
     jobs = {
-        "meta": ("Meta", "facebook", META_FIELDS, date_from),
-        "sales": ("Amazon sales", "amazon_sp", AMZ_SALES_FIELDS, date_from),
-        "settlement": ("Amazon settlement", "amazon_sp", SETTLEMENT_FIELDS, date_from),
+        "meta": ("Meta", "facebook", META_FIELDS, date_from, frozenset()),
+        "sales": ("Amazon sales", "amazon_sp", AMZ_SALES_FIELDS, date_from, frozenset()),
+        "settlement": ("Amazon settlement", "amazon_sp", SETTLEMENT_FIELDS, date_from, frozenset()),
     }
-    for ad_type, (prefix, camp) in AMZ_AD_REPORTS.items():
-        jobs[ad_type] = (f"Amazon Ads ({ad_type})", "amazon_ads", ["date", "account_name", f"{prefix}__{camp}", f"{prefix}__cost"], ads_from)
+    for ad_type in AMZ_AD_REPORTS:
+        fields, optional = amz_ad_fields(ad_type)
+        jobs[ad_type] = (f"Amazon Ads ({ad_type})", "amazon_ads", fields, ads_from, frozenset(optional))
     with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
-        futures = {name: pool.submit(pull, label, connector, fields, start) for name, (label, connector, fields, start) in jobs.items()}
+        futures = {name: pool.submit(pull, *job) for name, job in jobs.items()}
         got = {name: f.result() for name, f in futures.items()}
 
     if got["meta"] is not None:

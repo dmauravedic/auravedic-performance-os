@@ -44,6 +44,7 @@ other tabs too, so only named tabs and fixed ranges are read, never whole tabs:
   Nykaa Ads           A1:L200  -> Nykaa row of marketplaceSummary  (latest month with orders)
   Myntra Ads          A1:I200  -> Myntra row of marketplaceSummary (latest month with orders)
   Amazon Ads, FKT, Nykaa Ads, Myntra Ads, Purplle Ads, Snapdeal Ads
+  (Amazon's months inside Amazon's 60-day window are rebuilt from the Windsor Amazon Ads rows instead)
                                -> marketplaceAds, 24 months each (see scripts/marketplace_ads.py)
 
 Usage
@@ -67,6 +68,7 @@ With nothing configured, the script exits cleanly and the build keeps the bundle
 """
 
 import argparse
+import calendar
 import csv
 import json
 import os
@@ -76,7 +78,7 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from data_io import DAILY_FIELDS, SyncError, parse_number, read_daily_ts, write_daily_ts  # noqa: E402
-from windsor_daily import FRESHNESS_KEYS, GOOGLE_TAB, WINDSOR_TABS, merge_into_daily, parse_windsor  # noqa: E402
+from windsor_daily import FRESHNESS_KEYS, GOOGLE_TAB, WINDSOR_TABS, amz_ads_months, merge_amazon_months, merge_into_daily, parse_windsor  # noqa: E402
 from marketplace_ads import ADS_RANGES, build_marketplace_ads  # noqa: E402
 from windsor_api import read_windsor_api  # noqa: E402
 
@@ -574,6 +576,11 @@ def read_shan_google(sheet_id, credentials_json):
     return {tab: vr.get("values", []) for tab, vr in zip(SHAN_RANGES, reply.get("valueRanges", []))}
 
 
+def monthrange_end(month_key):
+    y, m = int(month_key[:4]), int(month_key[5:])
+    return f"{calendar.monthrange(y, m)[1]:02d}"
+
+
 def apply(tables, shan_tables, google_rows, out_dir, dry_run):
     results = {}
     for tab, spec in TABLES.items():
@@ -627,6 +634,17 @@ def apply(tables, shan_tables, google_rows, out_dir, dry_run):
             print(f"  {note}")
         if not notes:
             print("  Shan's sheet: nothing usable found, keeping the bundled snapshot for it")
+
+    # Amazon's monthly ad report: the months Windsor's daily Amazon Ads rows cover replace the ones
+    # typed into Shan's sheet (which stays the source for months older than Amazon's 60 days)
+    amz_months, amz_notes = amz_ads_months(tables.get("amz_ads_daily"), tables.get("amz_sales_date"))
+    if amz_months:
+        data["marketplaceAds"], cmp_notes = merge_amazon_months(data.get("marketplaceAds", []), amz_months)
+        through = amz_months[-1].get("through") or f"{amz_months[-1]['monthKey']}-{monthrange_end(amz_months[-1]['monthKey'])}"
+        data["freshness"]["amazonAdsMonthly"] = f"{through} 23:59 IST"
+        amz_notes += cmp_notes
+    for note in amz_notes:
+        print(f"  {note}")
 
     if dry_run:
         print("Dry run: nothing written.")
@@ -711,9 +729,11 @@ def fixture_fetcher(path):
         saved = json.load(f)
 
     def fetch(connector, fields, date_from, date_to, key, deadline=None):
-        rows = [r for r in saved.get(connector, []) if all(fl in r for fl in fields)]
+        # Amazon Ads' attributed sales and orders are optional, so a saved reply without them still counts
+        optional = {fl for fl in fields if any(w in fl for w in ("sales", "conversions", "purchases")) and connector == "amazon_ads"}
+        rows = [r for r in saved.get(connector, []) if all(fl in r for fl in fields if fl not in optional)]
         # Rows without a plain `date` (settlement lines carry a posted date) are not filtered by date
-        return [{fl: r[fl] for fl in fields} for r in rows if "date" not in r or date_from <= str(r["date"])[:10] <= date_to]
+        return [{fl: r[fl] for fl in fields if fl in r} for r in rows if "date" not in r or date_from <= str(r["date"])[:10] <= date_to]
 
     return fetch
 
