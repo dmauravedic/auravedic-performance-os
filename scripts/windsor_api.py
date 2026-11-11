@@ -177,12 +177,19 @@ def amz_ads_table(pulls):
     """pulls: {ad type: rows}. One row per account x campaign x ad type x day, so the reader's
     repeated-row key (date, campaign, ad type) never folds two accounts together."""
     out = []
+    seen = set()  # (date, account|campaign) already taken from an earlier report
     for ad_type, rows in pulls.items():
         prefix, camp = AMZ_AD_REPORTS[ad_type]
         sales, orders = AMZ_AD_RESULTS[ad_type]
         for r in rows:
             account = str(r.get("account_name") or r.get("account_id") or "").strip()
             campaign = str(r.get(f"{prefix}__{camp}") or "").strip()
+            key = (str(r.get("date"))[:10], f"{account}|{campaign}")
+            # Windsor serves Sponsored Brands campaigns in both the brands and the brands video report
+            # (same campaign id, same figures), so a campaign already counted for the day is skipped
+            if ad_type == "sponsored_brands_video" and campaign and key in seen:
+                continue
+            seen.add(key)
             out.append([r.get("date"), f"{account}|{campaign}", ad_type, r.get(f"{prefix}__cost"),
                         r.get(f"{prefix}__{sales}"), r.get(f"{prefix}__{orders}")])
     return _table(["date", "campaign", "ad_type", "cost", "ad_sales", "ad_orders"], out)
@@ -244,7 +251,11 @@ def read_windsor_api(key, date_from, date_to=None, fetcher=fetch, budget_seconds
         notes.append("WARNING Amazon Ads skipped: not every ad type was ready, and a part-sum would understate spend")
     else:
         tables["amz_ads_daily"] = amz_ads_table(pulls)
-        spend = {t: round(sum(float(r.get(f"{AMZ_AD_REPORTS[t][0]}__cost") or 0) for r in rows)) for t, rows in pulls.items()}
+        table = tables["amz_ads_daily"]
+        spend = {}
+        for row in table[1:]:
+            spend[row[2]] = spend.get(row[2], 0) + float(row[3] or 0)
+        spend = {t: round(spend.get(t, 0)) for t in pulls}
         notes.append(f"windsor api: amazon_ads from {ads_from} (Amazon keeps 60 days; older days keep the estimate): " + ", ".join(f"{t} Rs {v:,}" for t, v in spend.items()))
 
     return tables, notes
